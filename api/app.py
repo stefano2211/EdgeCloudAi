@@ -3,7 +3,6 @@ from langchain_community.vectorstores import Chroma
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Literal
-from langchain_ollama import OllamaEmbeddings
 from src.get_data import process_and_store_weather_data
 from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file
 from src.chat import chat

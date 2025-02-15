@@ -1,5 +1,4 @@
 from langchain_community.llms import Ollama
-from langchain_ollama import OllamaEmbeddings
 from langchain.memory import ConversationBufferMemory
 from langchain_community.vectorstores import Chroma
 from langchain.prompts import PromptTemplate
