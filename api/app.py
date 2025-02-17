@@ -1,12 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import FAISS
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Literal
 from src.get_data import get_weather_data, process_and_store_event
 from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file
 from src.chat import chat
+from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
+from langchain.docstore.document import Document
 import uvicorn
 import os
 
@@ -32,32 +34,28 @@ class DeletePDFRequest(BaseModel):
 
 @app.post("/weather/")
 async def control_weather_service(control: WeatherControl):
-    """
-    Endpoint para controlar el servicio de obtención de datos del clima.
-
-    Args:
-        control (WeatherControl): Objeto con el estado del servicio ("prendido" o "apagado"),
-                                 la ubicación y la descripción del evento.
-
-    Returns:
-        dict: Mensaje de confirmación del estado del servicio.
-    """
     global weather_service_status
     weather_service_status = control.status
 
-    # Configuración del vectorstore
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectorstore_weather = Chroma(
-        embedding_function=embed_model,
-        persist_directory="./db/weather_db",
-        collection_name="weather_data"
-    )
+
+    # Crear el directorio si no existe
+    os.makedirs("./db/weather_db", exist_ok=True)
+
+    # Verificar si el índice FAISS ya existe
+    if os.path.exists("./db/weather_db/index.faiss"):
+        vectorstore_weather = FAISS.load_local("./db/weather_db", embed_model,allow_dangerous_deserialization=True)
+    else:
+        # Inicializar con un documento ficticio
+        dummy_doc = Document(
+            "Documento inicial para inicializar FAISS",
+            metadata={"source": "inicialización"}
+        )
+        vectorstore_weather = FAISS.from_documents([dummy_doc], embed_model)
+        vectorstore_weather.save_local("./db/weather_db")
 
     if control.status == "prendido":
-        # Obtener datos del clima
         weather_data = await get_weather_data(control.location)
-
-        # Procesar y almacenar el evento junto con los datos del clima
         await process_and_store_event(
             vectorstore_weather,
             event_description=control.event,
@@ -100,6 +98,22 @@ async def upload_file(file: UploadFile = File(...)):
     delete_pdf_file(safe_filename)
     return {"message": f"Archivo subido correctamente. Archivo eliminado" }
 
+@app.post("/delete-pdf/")
+async def delete_pdf(request: DeletePDFRequest):
+    """
+    Endpoint para borrar un archivo PDF del retriever y del servidor.
+    """
+    filename = sanitize_filename(request.filename)
+    
+    try:
+        # Borrar los embeddings del vectorstore
+        delete_pdf_from_retriever(filename)
+        
+        return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al borrar el archivo: {str(e)}")
 
 @app.post("/chat/")
 async def quick_response(message: ChatMessage):
@@ -118,23 +132,7 @@ async def quick_response(message: ChatMessage):
     
     return {"response": response}
 
-@app.post("/delete-pdf/")
-async def delete_pdf(request: DeletePDFRequest):
-    """
-    Endpoint para borrar un archivo PDF del retriever y del servidor.
-    """
-    filename = sanitize_filename(request.filename)
-    
-    try:
-        # Borrar los embeddings del vectorstore
-        delete_pdf_from_retriever(filename)
-        
-        
-        return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al borrar el archivo: {str(e)}")
+
 
 
 if __name__ == '__main__':
