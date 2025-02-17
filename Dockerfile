@@ -24,4 +24,4 @@ COPY . /app
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "ollama serve & uvicorn api.main:app --host 0.0.0.0 --port 5000 --reload"]
+CMD ["sh", "-c", "ollama serve & uvicorn api.app:app --host 0.0.0.0 --port 5000 --reload"]
