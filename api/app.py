@@ -3,7 +3,7 @@ from langchain_community.vectorstores import Chroma
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Literal
-from src.get_data import process_and_store_weather_data
+from src.get_data import get_weather_data, process_and_store_event
 from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file
 from src.chat import chat
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
@@ -15,9 +15,12 @@ app = FastAPI()
 
 weather_service_status = "apagado"
 
+
+
 class WeatherControl(BaseModel):
     status: Literal["prendido", "apagado"]
-    location: str = "Madrid"  # Ubicación por defecto
+    location: str = "Madrid"
+    event: str = "Evento de clima"  # Descripción del evento
 
 class ChatMessage(BaseModel):
     msg: str
@@ -33,7 +36,8 @@ async def control_weather_service(control: WeatherControl):
     Endpoint para controlar el servicio de obtención de datos del clima.
 
     Args:
-        control (WeatherControl): Objeto con el estado del servicio ("prendido" o "apagado") y la ubicación.
+        control (WeatherControl): Objeto con el estado del servicio ("prendido" o "apagado"),
+                                 la ubicación y la descripción del evento.
 
     Returns:
         dict: Mensaje de confirmación del estado del servicio.
@@ -41,6 +45,7 @@ async def control_weather_service(control: WeatherControl):
     global weather_service_status
     weather_service_status = control.status
 
+    # Configuración del vectorstore
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore_weather = Chroma(
         embedding_function=embed_model,
@@ -49,10 +54,19 @@ async def control_weather_service(control: WeatherControl):
     )
 
     if control.status == "prendido":
-        return {"message": "El servicio está prendido. Último dato ya fue almacenado."}
+        # Obtener datos del clima
+        weather_data = await get_weather_data(control.location)
+
+        # Procesar y almacenar el evento junto con los datos del clima
+        await process_and_store_event(
+            vectorstore_weather,
+            event_description=control.event,
+            weather_data=weather_data,
+            location=control.location
+        )
+        return {"message": "El servicio está prendido. Datos del clima y evento almacenados."}
     else:
-        await process_and_store_weather_data(vectorstore_weather, control.location)
-        return {"message": "Datos del clima obtenidos y almacenados correctamente."}
+        return {"message": "El servicio está apagado."}
     
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
@@ -83,14 +97,9 @@ async def upload_file(file: UploadFile = File(...)):
     upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     create_vectorstore(file_location)
+    delete_pdf_file(safe_filename)
+    return {"message": f"Archivo subido correctamente. Archivo eliminado" }
 
-    return {
-        "pdf_name": safe_filename,
-        "Content-Type": file.content_type,
-        "file_location": file_location,
-        "file_size": f"{file.size / 1_048_576:.2f} MB",
-        "upload_time": upload_time,
-    }
 
 @app.post("/chat/")
 async def quick_response(message: ChatMessage):
@@ -120,8 +129,6 @@ async def delete_pdf(request: DeletePDFRequest):
         # Borrar los embeddings del vectorstore
         delete_pdf_from_retriever(filename)
         
-        # Borrar el archivo físico del servidor
-        delete_pdf_file(filename)
         
         return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
     except HTTPException as e:

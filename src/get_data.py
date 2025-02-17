@@ -39,42 +39,56 @@ async def get_weather_data(location: str = "Madrid") -> dict:
         raise HTTPException(status_code=500, detail=f"Error al obtener datos del clima: {e}")
 
 
-
-def preprocess_weather_data(weather_data: dict) -> str:
+def preprocess_weather_data(weather_data: dict, event_description: str) -> str:
     """
-    Preprocesa los datos del clima para convertirlos en un formato de texto.
+    Preprocesa los datos del clima y los combina con la descripción del evento.
 
     Args:
         weather_data (dict): Datos del clima en formato JSON.
+        event_description (str): Descripción del evento proporcionada por el usuario.
 
     Returns:
-        str: Texto preprocesado con los datos del clima.
+        str: Texto preprocesado con los datos del clima y la descripción del evento.
     """
     current_condition = weather_data["current_condition"][0]
     weather_text = (
+        f"Evento: {event_description}\n"
         f"Ubicación: {weather_data['nearest_area'][0]['areaName'][0]['value']}\n"
         f"Temperatura: {current_condition['temp_C']}°C\n"
         f"Condición: {current_condition['weatherDesc'][0]['value']}\n"
         f"Humedad: {current_condition['humidity']}%\n"
         f"Viento: {current_condition['windspeedKmph']} km/h\n"
-        f"Date: {current_condition['localObsDateTime']}"
+        f"Fecha: {current_condition['localObsDateTime']}"
     )
     return weather_text
 
 
-async def process_and_store_weather_data(vectorstore, location: str = "Madrid") -> None:
+async def process_and_store_event(vectorstore, event_description: str, weather_data: dict, location: str) -> None:
     """
-    Procesa y almacena datos del clima en un vectorstore.
+    Procesa y almacena un evento en un vectorstore.
 
     Args:
         vectorstore: El vectorstore donde se almacenarán los documentos.
-        location (str): Ubicación para la cual se obtendrá el clima. Por defecto es "Madrid".
+        event_description (str): Descripción del evento proporcionada por el usuario.
+        weather_data (dict): Datos del clima en formato JSON.
+        location (str): Ubicación del evento.
     """
-    weather_data = await get_weather_data(location)
-    if weather_data:
-        weather_text = preprocess_weather_data(weather_data)
-        doc = Document(weather_text, metadata={"source": "wttr.in", "location": location})
+    # Combinar los datos del clima con la descripción del evento
+    event_text = preprocess_weather_data(weather_data, event_description)
 
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=500)
-        split_docs = text_splitter.split_documents([doc])
-        vectorstore.add_documents(split_docs)
+    # Crear el documento con el texto contextualizado y metadatos
+    doc = Document(
+        event_text,
+        metadata={
+            "source": "API del clima",
+            "event_description": event_description,
+            "location": location
+        }
+    )
+
+    # Dividir el documento en chunks (si es necesario)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=500)
+    split_docs = text_splitter.split_documents([doc])
+
+    # Almacenar en el vectorstore
+    vectorstore.add_documents(split_docs)
