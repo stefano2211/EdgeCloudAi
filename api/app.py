@@ -70,12 +70,6 @@ async def control_weather_service(control: WeatherControl):
 async def upload_file(file: UploadFile = File(...)):
     """
     Endpoint para subir un archivo PDF.
-
-    Args:
-        file (UploadFile): El archivo PDF a subir.
-
-    Returns:
-        dict: Información sobre el archivo subido.
     """
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="¡Por favor, sube un archivo PDF!")
@@ -92,11 +86,14 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ocurrió un error al guardar el archivo: {str(e)}")
 
-    upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
+    # Procesar el archivo y crear el índice FAISS
+    print(f"Procesando archivo: {safe_filename}")
     create_vectorstore(file_location)
+
+    # Eliminar el archivo físico
     delete_pdf_file(safe_filename)
-    return {"message": f"Archivo subido correctamente. Archivo eliminado" }
+
+    return {"message": f"Archivo subido correctamente. Archivo eliminado."}
 
 @app.post("/delete-pdf/")
 async def delete_pdf(request: DeletePDFRequest):

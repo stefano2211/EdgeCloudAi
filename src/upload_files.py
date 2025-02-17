@@ -11,17 +11,17 @@ from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 def process_file(filepath: str) -> list:
     """
     Procesa un archivo PDF y devuelve los documentos extraídos.
-
-    Args:
-        filepath (str): La ruta del archivo PDF a procesar.
-
-    Returns:
-        list: Lista de documentos extraídos del archivo.
     """
     loader = PyPDFLoader(file_path=filepath)
     data_csv = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=500)
     docs = text_splitter.split_documents(data_csv)
+
+    # Agregar el campo 'source' a los metadatos de cada documento
+    filename = os.path.basename(filepath)
+    for doc in docs:
+        doc.metadata["source"] = filename
+
     return docs
 
 def create_vectorstore(filepath: str):
@@ -79,18 +79,29 @@ def delete_pdf_from_retriever(filename: str):
         else:
             raise HTTPException(status_code=404, detail="No se encontró el índice FAISS.")
 
-        # Obtener los IDs de los documentos asociados al archivo
+        # Obtener todos los documentos del índice FAISS
+        docs = vectorstore_files.docstore._dict
+
+        # Filtrar los documentos asociados al archivo
         docs_to_delete = [
-            doc_id for doc_id, metadata in zip(vectorstore_files.index_to_docstore_id.values(), vectorstore_files.docstore._dict.values())
+            doc_id for doc_id, metadata in docs.items()
             if metadata.metadata.get("source") == filename
         ]
 
+        # Verificar si se encontraron documentos para eliminar
+        if not docs_to_delete:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No se encontraron documentos asociados a '{filename}'. Metadatos: {[m.metadata for m in docs.values()]}"
+            )
+
         # Eliminar los documentos del índice
-        if docs_to_delete:
-            vectorstore_files.delete(docs_to_delete)
-            vectorstore_files.save_local("./db/pdf_db")  # Guardar los cambios
-        else:
-            raise HTTPException(status_code=404, detail=f"No se encontraron documentos asociados a '{filename}'.")
+        vectorstore_files.delete(docs_to_delete)
+
+        # Guardar los cambios en el índice FAISS
+        vectorstore_files.save_local("./db/pdf_db")
+
+        return {"message": f"Se eliminaron {len(docs_to_delete)} documentos asociados a '{filename}'."}
 
     except HTTPException as e:
         raise e
