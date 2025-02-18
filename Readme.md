@@ -28,7 +28,7 @@ This file defines the FastAPI application with several endpoints:
 1. **`/text/`**: Processes and stores text in a vectorstore.
 2. **`/upload/`**: Uploads a PDF file, processes it, and stores it in a vectorstore.
 3. **`/chat/`**: Generates a response to a message using a language model and a vectorstore.
-4. **`/delete-pdf/`**: Deletes a PDF file from the vectorstore and the server.
+4. **`/delete-pdf/`**: Deletes a PDF file from the vectorstore.
 
 ### [`src/upload_files.py`](src/upload_files.py)
 
