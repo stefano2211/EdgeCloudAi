@@ -1,28 +1,23 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import Chroma
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Literal
-from src.get_data import get_weather_data, process_and_store_event
+from src.get_data import process_and_store_text_data
 from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file
 from src.chat import chat
-from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
-from langchain.docstore.document import Document
 import uvicorn
 import os
 
 
 app = FastAPI()
 
-weather_service_status = "apagado"
 
 
-
-class WeatherControl(BaseModel):
-    status: Literal["prendido", "apagado"]
-    location: str = "Madrid"
-    event: str = "Evento de clima"  # Descripción del evento
+class TextControl(BaseModel):
+    text: str  # Texto que se va a procesar
+    metadata: dict = None  # Metadatos opcionales
 
 class ChatMessage(BaseModel):
     msg: str
@@ -32,44 +27,37 @@ class DeletePDFRequest(BaseModel):
     filename: str
     
 
-@app.post("/weather/")
-async def control_weather_service(control: WeatherControl):
-    global weather_service_status
-    weather_service_status = control.status
+@app.post("/text/")
+async def control_weather_service(control: TextControl):
+    """
+    Endpoint para controlar el servicio de obtención de datos del maquinas.
+
+    Args:
+        control (TextControl): Recive un texto con datos contextualizados.
+
+    Returns:
+        dict: Almacenamiento del mensaje.
+    """
 
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-    # Crear el directorio si no existe
-    os.makedirs("./db/weather_db", exist_ok=True)
-
-    # Verificar si el índice FAISS ya existe
-    if os.path.exists("./db/weather_db/index.faiss"):
-        vectorstore_weather = FAISS.load_local("./db/weather_db", embed_model,allow_dangerous_deserialization=True)
-    else:
-        # Inicializar con un documento ficticio
-        dummy_doc = Document(
-            "Documento inicial para inicializar FAISS",
-            metadata={"source": "inicialización"}
-        )
-        vectorstore_weather = FAISS.from_documents([dummy_doc], embed_model)
-        vectorstore_weather.save_local("./db/weather_db")
-
-    if control.status == "prendido":
-        weather_data = await get_weather_data(control.location)
-        await process_and_store_event(
-            vectorstore_weather,
-            event_description=control.event,
-            weather_data=weather_data,
-            location=control.location
-        )
-        return {"message": "El servicio está prendido. Datos del clima y evento almacenados."}
-    else:
-        return {"message": "El servicio está apagado."}
+    vectorstore_weather = Chroma(
+        embedding_function=embed_model,
+        persist_directory="./db/text_db",
+        collection_name="text_data"
+    )
+    await process_and_store_text_data(vectorstore_weather,control.text, control.metadata)
+    return {"message": "Datos obtenidos y almacenados correctamente."}
     
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     """
     Endpoint para subir un archivo PDF.
+
+    Args:
+        file (UploadFile): El archivo PDF a subir.
+
+    Returns:
+        dict: Información sobre el archivo subido.
     """
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="¡Por favor, sube un archivo PDF!")
@@ -86,31 +74,17 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ocurrió un error al guardar el archivo: {str(e)}")
 
-    # Procesar el archivo y crear el índice FAISS
-    print(f"Procesando archivo: {safe_filename}")
+    upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     create_vectorstore(file_location)
 
-    # Eliminar el archivo físico
-    delete_pdf_file(safe_filename)
-
-    return {"message": f"Archivo subido correctamente. Archivo eliminado."}
-
-@app.post("/delete-pdf/")
-async def delete_pdf(request: DeletePDFRequest):
-    """
-    Endpoint para borrar un archivo PDF del retriever y del servidor.
-    """
-    filename = sanitize_filename(request.filename)
-    
-    try:
-        # Borrar los embeddings del vectorstore
-        delete_pdf_from_retriever(filename)
-        
-        return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al borrar el archivo: {str(e)}")
+    return {
+        "pdf_name": safe_filename,
+        "Content-Type": file.content_type,
+        "file_location": file_location,
+        "file_size": f"{file.size / 1_048_576:.2f} MB",
+        "upload_time": upload_time,
+    }
 
 @app.post("/chat/")
 async def quick_response(message: ChatMessage):
@@ -129,7 +103,25 @@ async def quick_response(message: ChatMessage):
     
     return {"response": response}
 
-
+@app.post("/delete-pdf/")
+async def delete_pdf(request: DeletePDFRequest):
+    """
+    Endpoint para borrar un archivo PDF del retriever y del servidor.
+    """
+    filename = sanitize_filename(request.filename)
+    
+    try:
+        # Borrar los embeddings del vectorstore
+        delete_pdf_from_retriever(filename)
+        
+        # Borrar el archivo físico del servidor
+        delete_pdf_file(filename)
+        
+        return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al borrar el archivo: {str(e)}")
 
 
 if __name__ == '__main__':

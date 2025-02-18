@@ -1,6 +1,6 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import Chroma
 from fastapi import HTTPException
 import re
 import os
@@ -11,17 +11,17 @@ from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 def process_file(filepath: str) -> list:
     """
     Procesa un archivo PDF y devuelve los documentos extraídos.
+
+    Args:
+        filepath (str): La ruta del archivo PDF a procesar.
+
+    Returns:
+        list: Lista de documentos extraídos del archivo.
     """
     loader = PyPDFLoader(file_path=filepath)
     data_csv = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=500)
     docs = text_splitter.split_documents(data_csv)
-
-    # Agregar el campo 'source' a los metadatos de cada documento
-    filename = os.path.basename(filepath)
-    for doc in docs:
-        doc.metadata["source"] = filename
-
     return docs
 
 def create_vectorstore(filepath: str):
@@ -34,19 +34,16 @@ def create_vectorstore(filepath: str):
     Returns:
         vectorstore: El vectorstore creado a partir de los documentos extraídos.
     """
+    # Autenticación en Hugging Face
+
     docs = process_file(filepath)
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-    # Verificar si ya existe un índice FAISS
-    if os.path.exists("./db/pdf_db/index.faiss"):
-        vectorstore_files = FAISS.load_local("./db/pdf_db", embed_model, allow_dangerous_deserialization=True)
-        vectorstore_files.add_documents(docs)  # Agregar nuevos documentos al índice existente
-    else:
-        # Si no existe, crear un nuevo índice FAISS
-        vectorstore_files = FAISS.from_documents(docs, embed_model)
-
-    # Guardar el índice en disco
-    vectorstore_files.save_local("./db/pdf_db")
+    vectorstore_files = Chroma.from_documents(
+        documents=docs,
+        embedding=embed_model,
+        persist_directory="./db/pdf_db",
+        collection_name="pdf_data"
+    )
     return vectorstore_files
 
 def sanitize_filename(filename: str) -> str:
@@ -70,39 +67,25 @@ def delete_pdf_from_retriever(filename: str):
     Borra todos los documentos asociados a un archivo PDF del vectorstore.
     """
     try:
-        # Inicializar el modelo de embeddings
+        # Inicializar el vectorstore (si no está inicializado globalmente)
         embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-        # Cargar el índice FAISS existente
-        if os.path.exists("./db/pdf_db/index.faiss"):
-            vectorstore_files = FAISS.load_local("./db/pdf_db", embed_model, allow_dangerous_deserialization=True)
-        else:
-            raise HTTPException(status_code=404, detail="No se encontró el índice FAISS.")
-
-        # Obtener todos los documentos del índice FAISS
-        docs = vectorstore_files.docstore._dict
-
-        # Filtrar los documentos asociados al archivo
-        docs_to_delete = [
-            doc_id for doc_id, metadata in docs.items()
-            if metadata.metadata.get("source") == filename
-        ]
-
-        # Verificar si se encontraron documentos para eliminar
-        if not docs_to_delete:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No se encontraron documentos asociados a '{filename}'. Metadatos: {[m.metadata for m in docs.values()]}"
-            )
-
-        # Eliminar los documentos del índice
-        vectorstore_files.delete(docs_to_delete)
-
-        # Guardar los cambios en el índice FAISS
-        vectorstore_files.save_local("./db/pdf_db")
-
-        return {"message": f"Se eliminaron {len(docs_to_delete)} documentos asociados a '{filename}'."}
-
+        vectorstore_files = Chroma(
+            embedding_function=embed_model,
+            persist_directory="./db/pdf_db",
+            collection_name="pdf_data"
+        )
+        
+        # Acceder a la colección de Chroma
+        collection = vectorstore_files._collection
+        
+        # Eliminar documentos basados en los metadatos
+        collection.delete(where={"filename": filename})
+        
+        # Opcional: Verificar si los documentos fueron eliminados
+        remaining_docs = collection.get(where={"filename": filename})
+        if remaining_docs.get("ids"):  # Verificar si hay documentos restantes
+            raise HTTPException(status_code=500, detail=f"No se pudieron eliminar todos los documentos asociados a '{filename}'.")
+        
     except HTTPException as e:
         raise e
     except Exception as e:
