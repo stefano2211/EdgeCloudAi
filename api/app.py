@@ -28,7 +28,7 @@ class DeletePDFRequest(BaseModel):
     
 
 @app.post("/text/")
-async def control_weather_service(control: TextControl):
+async def text_embed_service(control: TextControl):
     """
     Endpoint para controlar el servicio de obtención de datos del maquinas.
 
