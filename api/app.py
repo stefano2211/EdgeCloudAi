@@ -13,7 +13,7 @@ import os
 
 app = FastAPI()
 
-
+processed_pdfs = []
 
 class TextControl(BaseModel):
     text: str  # Texto que se va a procesar
@@ -82,13 +82,15 @@ async def upload_file(file: UploadFile = File(...)):
     # Eliminar el archivo PDF del disco
     os.remove(file_location)
 
+    # Agregar el nombre del archivo a la lista de PDFs procesados
+    processed_pdfs.append(safe_filename)
+
     return {
         "pdf_name": safe_filename,
         "Content-Type": file.content_type,
         "file_size": f"{file.size / 1_048_576:.2f} MB",
         "upload_time": upload_time,
     }
-
 
 
 
@@ -112,20 +114,43 @@ async def quick_response(message: ChatMessage):
 @app.post("/delete-pdf/")
 async def delete_pdf(request: DeletePDFRequest):
     """
-    Endpoint para borrar un archivo PDF del retriever y del servidor.
+    Endpoint para borrar un archivo PDF solo de la lista de PDFs procesados.
     """
     filename = sanitize_filename(request.filename)
     
     try:
-        # Borrar los embeddings del vectorstore
-        delete_pdf_from_retriever(filename)
+        # Verificar si el filename está en la lista
+        if filename not in processed_pdfs:
+            raise HTTPException(
+                status_code=404,
+                detail=f"El archivo '{filename}' no está en la lista de PDFs procesados."
+            )
         
+        # Eliminar el archivo de la lista de PDFs procesados
+        processed_pdfs.remove(filename)
         
-        return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
+        return {"message": f"El archivo '{filename}' ha sido borrado de la lista correctamente."}
+    
     except HTTPException as e:
+        # Re-lanzar excepciones HTTPException
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al borrar el archivo: {str(e)}")
+        # Capturar cualquier otra excepción y devolver un error 500
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al borrar el archivo de la lista: {str(e)}"
+        )
+
+
+@app.get("/get-pdfs/")
+async def get_pdfs():
+    """
+    Endpoint para obtener la lista de PDFs procesados.
+    """
+    return {"pdfs": processed_pdfs}
+
+
+
 
 
 if __name__ == '__main__':
