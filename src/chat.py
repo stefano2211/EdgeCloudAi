@@ -8,25 +8,16 @@ from langchain.retrievers import EnsembleRetriever
 
 
 
-def chat(msg: str, reset: bool = False) -> str:
+def chat(msg: str, buffer) -> str:
     """
     Genera una respuesta a un mensaje utilizando un modelo de lenguaje y un vectorstore.
-    Si reset es True, se borra el buffer de la conversación.
 
     Args:
         msg (str): El mensaje del usuario.
-        reset (bool): Si es True, se resetea la memoria de la conversación.
 
     Returns:
         str: La respuesta generada por el modelo.
     """
-    conversation_memory = ConversationBufferMemory(memory_key="history", input_key="question")
-
-    # Resetear la memoria si el usuario lo solicita
-    if reset:
-        conversation_memory.clear()
-        return "La conversación ha sido reseteada. ¿En qué puedo ayudarte?"
-
     llm = Ollama(model="llama3.1:8b")
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -46,14 +37,14 @@ def chat(msg: str, reset: bool = False) -> str:
     retriever_weather = vectorstore_weather.as_retriever(search_kwargs={'k': 3})
     
     ensemble_retriever = EnsembleRetriever(
-    retrievers=[retriever_pdf, retriever_weather],
-    weights=[0.5, 0.5]  # Pesos iguales para ambos retrievers
+        retrievers=[retriever_pdf, retriever_weather],
+        weights=[0.5, 0.5]  # Pesos iguales para ambos retrievers
     )
 
     custom_prompt_template = """
-    Si la pregunta es sobre el los datos de las maquinas, responde basado en los datos de las maquinas.
+    Si la pregunta es sobre los datos de las máquinas, responde basado en los datos de las máquinas.
     Si la pregunta es sobre un archivo, responde basado en el contenido del archivo PDF.
-    Si la pregunta necesique que combine ambos datos hazlo para la prediccion final
+    Si la pregunta necesita que combines ambos datos, hazlo para la predicción final.
     Contexto: {context}
     Historial de conversación: {history}
     Pregunta: {question}
@@ -74,10 +65,9 @@ def chat(msg: str, reset: bool = False) -> str:
         chain_type_kwargs={
             "verbose": True,
             "prompt": prompt,
-            "memory": conversation_memory,
+            "memory": buffer,
         }
     )
-
 
     response = qa.invoke({"query": msg})
     return response['result']

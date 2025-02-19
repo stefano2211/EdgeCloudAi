@@ -8,12 +8,15 @@ from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_f
 from src.chat import chat
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 import uvicorn
+from langchain.memory import ConversationBufferMemory
 import os
 
 
 app = FastAPI()
 
 processed_pdfs = []
+
+conversation_memory = ConversationBufferMemory(memory_key="history", input_key="question")
 
 class TextControl(BaseModel):
     text: str  # Texto que se va a procesar
@@ -106,7 +109,7 @@ async def quick_response(message: ChatMessage):
     Returns:
         dict: La respuesta generada.
     """
-    response = chat(message.msg, reset=message.reset)
+    response = chat(msg=message.msg, buffer=conversation_memory)
     
     
     return {"response": response}
@@ -132,6 +135,20 @@ async def get_pdfs():
     """
     return {"pdfs": processed_pdfs}
 
+
+@app.put("/reset-chat/")
+async def reset_chat_buffer():
+    """
+    Endpoint para resetear el buffer de la conversación.
+    """
+    try:
+        conversation_memory.clear()  # Limpiar el buffer de la conversación
+        return {"message": "El buffer del chat ha sido reseteado correctamente."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al resetear el buffer: {str(e)}"
+        )
 
 
 
