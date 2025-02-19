@@ -40,12 +40,12 @@ async def text_embed_service(control: TextControl):
     """
 
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectorstore_weather = Chroma(
+    vectorstore = Chroma(
         embedding_function=embed_model,
         persist_directory="./db/text_db",
         collection_name="text_data"
     )
-    await process_and_store_text_data(vectorstore_weather,control.text, control.metadata)
+    await process_and_store_text_data(vectorstore,control.text, control.metadata)
     return {"message": "Datos obtenidos y almacenados correctamente."}
     
 @app.post("/upload/")
@@ -111,35 +111,18 @@ async def quick_response(message: ChatMessage):
     
     return {"response": response}
 
-@app.post("/delete-pdf/")
+@app.delete("/delete-pdf/")  # Cambiado a DELETE
 async def delete_pdf(request: DeletePDFRequest):
-    """
-    Endpoint para borrar un archivo PDF solo de la lista de PDFs procesados.
-    """
     filename = sanitize_filename(request.filename)
     
-    try:
-        # Verificar si el filename está en la lista
-        if filename not in processed_pdfs:
-            raise HTTPException(
-                status_code=404,
-                detail=f"El archivo '{filename}' no está en la lista de PDFs procesados."
-            )
-        
-        # Eliminar el archivo de la lista de PDFs procesados
-        processed_pdfs.remove(filename)
-        
-        return {"message": f"El archivo '{filename}' ha sido borrado de la lista correctamente."}
-    
-    except HTTPException as e:
-        # Re-lanzar excepciones HTTPException
-        raise e
-    except Exception as e:
-        # Capturar cualquier otra excepción y devolver un error 500
+    if filename not in processed_pdfs:
         raise HTTPException(
-            status_code=500,
-            detail=f"Error al borrar el archivo de la lista: {str(e)}"
+            status_code=404,
+            detail=f"El archivo '{filename}' no está en la lista de PDFs procesados."
         )
+    
+    processed_pdfs.remove(filename)
+    return {"message": f"El archivo '{filename}' ha sido borrado de la lista correctamente."}
 
 
 @app.get("/get-pdfs/")
