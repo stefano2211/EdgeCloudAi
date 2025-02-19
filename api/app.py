@@ -76,15 +76,21 @@ async def upload_file(file: UploadFile = File(...)):
 
     upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Vectorizar el archivo PDF
     create_vectorstore(file_location)
+
+    # Eliminar el archivo PDF del disco
+    os.remove(file_location)
 
     return {
         "pdf_name": safe_filename,
         "Content-Type": file.content_type,
-        "file_location": file_location,
         "file_size": f"{file.size / 1_048_576:.2f} MB",
         "upload_time": upload_time,
     }
+
+
+
 
 @app.post("/chat/")
 async def quick_response(message: ChatMessage):
@@ -114,8 +120,6 @@ async def delete_pdf(request: DeletePDFRequest):
         # Borrar los embeddings del vectorstore
         delete_pdf_from_retriever(filename)
         
-        # Borrar el archivo físico del servidor
-        delete_pdf_file(filename)
         
         return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
     except HTTPException as e:
