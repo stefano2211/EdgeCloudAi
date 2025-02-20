@@ -114,7 +114,7 @@ async def quick_response(message: ChatMessage):
     
     return {"response": response}
 
-@app.delete("/delete-pdf/")  # Cambiado a DELETE
+@app.delete("/delete-pdf/")
 async def delete_pdf(request: DeletePDFRequest):
     filename = sanitize_filename(request.filename)
     
@@ -124,9 +124,14 @@ async def delete_pdf(request: DeletePDFRequest):
             detail=f"El archivo '{filename}' no está en la lista de PDFs procesados."
         )
     
+    # Eliminar los embeddings asociados con el PDF
+    delete_pdf_from_retriever(filename)
+    
+    
+    # Eliminar el nombre del archivo de la lista de PDFs procesados
     processed_pdfs.remove(filename)
-    return {"message": f"El archivo '{filename}' ha sido borrado de la lista correctamente."}
-
+    
+    return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
 
 @app.get("/get-pdfs/")
 async def get_pdfs():

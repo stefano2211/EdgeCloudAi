@@ -27,16 +27,13 @@ def process_file(filepath: str) -> list:
 def create_vectorstore(filepath: str):
     """
     Crea un vectorstore a partir de un archivo PDF.
-
-    Args:
-        filepath (str): La ruta del archivo PDF a procesar.
-
-    Returns:
-        vectorstore: El vectorstore creado a partir de los documentos extraídos.
     """
-    # Autenticación en Hugging Face
-
     docs = process_file(filepath)
+    
+    # Añadir metadatos a los documentos
+    for doc in docs:
+        doc.metadata["source"] = filepath  # Asegúrate de que el campo "source" esté presente
+    
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore_files = Chroma.from_documents(
         documents=docs,
@@ -67,7 +64,7 @@ def delete_pdf_from_retriever(filename: str):
     Borra todos los documentos asociados a un archivo PDF del vectorstore.
     """
     try:
-        # Inicializar el vectorstore (si no está inicializado globalmente)
+        # Inicializar el vectorstore
         embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vectorstore_files = Chroma(
             embedding_function=embed_model,
@@ -79,12 +76,19 @@ def delete_pdf_from_retriever(filename: str):
         collection = vectorstore_files._collection
         
         # Eliminar documentos basados en los metadatos
-        collection.delete(where={"filename": filename})
+        # Asegúrate de que el campo "source" o "filename" esté en los metadatos
+        collection.delete(where={"source": filename})
         
-        # Opcional: Verificar si los documentos fueron eliminados
-        remaining_docs = collection.get(where={"filename": filename})
-        if remaining_docs.get("ids"):  # Verificar si hay documentos restantes
-            raise HTTPException(status_code=500, detail=f"No se pudieron eliminar todos los documentos asociados a '{filename}'.")
+        # Verificar si los documentos fueron eliminados
+        remaining_docs = collection.get(where={"source": filename})
+        if remaining_docs.get("ids"):  # Si hay documentos restantes
+            raise HTTPException(
+                status_code=500,
+                detail=f"No se pudieron eliminar todos los documentos asociados a '{filename}'."
+            )
+        
+        # Guardar los cambios en el disco
+        vectorstore_files.persist()
         
     except HTTPException as e:
         raise e
