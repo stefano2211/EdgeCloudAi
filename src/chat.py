@@ -27,17 +27,17 @@ def chat(msg: str, buffer) -> str:
         collection_name="pdf_data"
     )
 
-    vectorstore_weather = Chroma(
+    vectorstore_txt = Chroma(
         embedding_function=embed_model,
         persist_directory="./db/text_db",
         collection_name="text_data"
     )
     
     retriever_pdf = vectorstore_pdf.as_retriever(search_kwargs={'k': 3})
-    retriever_weather = vectorstore_weather.as_retriever(search_kwargs={'k': 3})
+    retriever_txt = vectorstore_txt.as_retriever(search_kwargs={'k': 3})
     
     ensemble_retriever = EnsembleRetriever(
-        retrievers=[retriever_pdf, retriever_weather],
+        retrievers=[retriever_pdf, retriever_txt],
         weights=[0.5, 0.5]  # Pesos iguales para ambos retrievers
     )
 

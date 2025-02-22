@@ -96,5 +96,3 @@ def delete_pdf_from_retriever(filename: str):
         raise HTTPException(status_code=500, detail=f"Error al borrar los embeddings: {str(e)}")
 
 
-
-
