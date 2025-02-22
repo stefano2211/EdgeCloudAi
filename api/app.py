@@ -1,6 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
 from langchain_community.vectorstores import Chroma
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional, Literal
 from src.get_data import process_and_store_text_data
@@ -10,13 +10,11 @@ from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 import uvicorn
 from langchain.memory import ConversationBufferMemory
 import os
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from datetime import datetime, timedelta
-from sqlalchemy import create_engine, Column, Integer, String, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from passlib.context import CryptContext
+from database.database import *
+from database import crud
+from database.database import engine
+from sqlalchemy.orm import Session
+from auth.jwt_handler import create_access_token, decode_token
 import re
 
 app = FastAPI()
@@ -24,31 +22,15 @@ app = FastAPI()
 # Crear la carpeta "users" si no existe
 os.makedirs("users", exist_ok=True)
 
-# Configuración de la base de datos SQLite (guardada en la carpeta "users")
-DATABASE_URL = "sqlite:///./users/test.db"
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Crear las tablas de la base de datos
+from database import models
+models.Base.metadata.create_all(bind=engine)
 
-processed_pdfs = []
-
+# Configuración de la memoria de conversación
 conversation_memory = ConversationBufferMemory(memory_key="history", input_key="question")
 
-Base = declarative_base()
-
-# Modelo de usuario
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
-
-# Crear la base de datos
-Base.metadata.create_all(bind=engine)
-
-# Configuración de hashing de contraseñas
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Lista de PDFs procesados
+processed_pdfs = []
 
 # Modelo Pydantic para el registro de usuarios
 class UserCreate(BaseModel):
@@ -56,70 +38,18 @@ class UserCreate(BaseModel):
     email: str
     password: str
 
-# Modelo Pydantic para el inicio de sesión (con los parámetros que mencionas)
+# Modelo Pydantic para el inicio de sesión
 class UserLogin(BaseModel):
-    grant_type: str = "password"
+    grant_type: str
     username: str
     password: str
     scope: Optional[str] = ""
     client_id: Optional[str] = ""
     client_secret: Optional[str] = ""
 
+# Modelo Pydantic para recibir el token en el cuerpo de la solicitud
 class TokenRequest(BaseModel):
     token: str
-
-# Configuración de JWT
-SECRET_KEY = "your-secret-key"  # Debe ser una cadena segura
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Función para verificar la contraseña
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-# Función para obtener el hash de la contraseña
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-# Función para obtener un usuario por nombre de usuario
-def get_user(db, username: str):
-    return db.query(User).filter(User.username == username).first()
-
-# Función para autenticar al usuario
-def authenticate_user(db, username: str, password: str):
-    user = get_user(db, username)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
-    return user
-
-# Función para crear un token de acceso
-def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-# Función para decodificar y validar el token
-def decode_token(token: str):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    return username
 
 # Modelo para el control de texto
 class TextControl(BaseModel):
@@ -137,21 +67,16 @@ class DeletePDFRequest(BaseModel):
 
 # Endpoint para registrar un nuevo usuario
 @app.post("/register/")
-async def register(user: UserCreate):
-    db = SessionLocal()
-    db_user = get_user(db, username=user.username)
+async def register(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = crud.get_user(db, username=user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
-    hashed_password = get_password_hash(user.password)
-    db_user = User(username=user.username, email=user.email, hashed_password=hashed_password)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
+    crud.create_user(db, user)
     return {"message": "User registered successfully"}
 
 # Endpoint para iniciar sesión y obtener un token de acceso
 @app.post("/token/")
-async def login(user_login: UserLogin):
+async def login(user_login: UserLogin, db: Session = Depends(get_db)):
     # Validar que el grant_type sea "password"
     if user_login.grant_type != "password":
         raise HTTPException(
@@ -159,15 +84,14 @@ async def login(user_login: UserLogin):
             detail="Invalid grant_type. Only 'password' is supported.",
         )
 
-    db = SessionLocal()
-    user = authenticate_user(db, user_login.username, user_login.password)
+    user = crud.authenticate_user(db, user_login.username, user_login.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=30)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
@@ -175,13 +99,12 @@ async def login(user_login: UserLogin):
 
 # Endpoint para obtener la información del usuario actual (recibe el token en el cuerpo)
 @app.post("/users/me/")
-async def read_users_me(token_request: TokenRequest):
+async def read_users_me(token_request: TokenRequest, db: Session = Depends(get_db)):
     # Decodificar y validar el token
     username = decode_token(token_request.token)
 
     # Obtener la información del usuario
-    db = SessionLocal()
-    user = get_user(db, username=username)
+    user = crud.get_user(db, username=username)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -193,7 +116,6 @@ async def read_users_me(token_request: TokenRequest):
         "email": user.email,
         "is_active": user.is_active,
     }
-
 
 # Endpoint para procesar y almacenar texto
 @app.post("/text/")
