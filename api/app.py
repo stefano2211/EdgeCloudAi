@@ -12,7 +12,6 @@ from langchain.memory import ConversationBufferMemory
 import os
 
 
-
 app = FastAPI()
 
 processed_pdfs = []
