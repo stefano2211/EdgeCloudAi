@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
 from langchain_community.vectorstores import Chroma
+from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional, Literal
@@ -64,6 +65,13 @@ async def register(user: UserCreate):
     db.commit()
     db.refresh(db_user)
     return {"message": "User registered successfully"}
+
+@app.post("/logout")
+async def logout():
+    return JSONResponse(
+        content={"message": "Logged out successfully"},
+        status_code=status.HTTP_200_OK,
+    )
 
 # Endpoint para iniciar sesión y obtener un token de acceso
 @app.post("/token")
