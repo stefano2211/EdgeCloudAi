@@ -53,7 +53,7 @@ class DeletePDFRequest(BaseModel):
     filename: str
 
 # Endpoint para registrar un nuevo usuario
-@app.post("/register/")
+@app.post("/register/", tags=["Autentication"])
 async def register(user: UserCreate):
     db = next(get_db())
     db_user = get_user(db, username=user.username)
@@ -66,7 +66,7 @@ async def register(user: UserCreate):
     db.refresh(db_user)
     return {"message": "User registered successfully"}
 
-@app.post("/logout")
+@app.post("/logout", tags=["Autentication"])
 async def logout():
     return JSONResponse(
         content={"message": "Logged out successfully"},
@@ -74,7 +74,7 @@ async def logout():
     )
 
 # Endpoint para iniciar sesión y obtener un token de acceso
-@app.post("/token")
+@app.post("/token", tags=["Autentication"])
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     db = next(get_db())
     user = authenticate_user(db, form_data.username, form_data.password)
@@ -90,7 +90,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/users/me")
+@app.get("/users/me", tags=["Autentication"])
 async def read_users_me(
     current_user: User = Depends(get_current_active_user),
 ):
@@ -104,7 +104,7 @@ async def read_users_me(
 
 
 # Endpoint para procesar y almacenar texto
-@app.post("/text/")
+@app.post("/text/", tags=["External MES Data"])
 async def text_embed_service(control: TextControl):
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore = Chroma(
@@ -116,7 +116,7 @@ async def text_embed_service(control: TextControl):
     return {"message": "Datos obtenidos y almacenados correctamente."}
 
 # Endpoint para subir un archivo PDF
-@app.post("/upload/")
+@app.post("/upload/", tags=["Files"])
 async def upload_file(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -160,7 +160,7 @@ async def upload_file(
     }
 
 # Endpoint para generar una respuesta a un mensaje
-@app.post("/chat/")
+@app.post("/chat/", tags=["Chat"])
 async def chat_endpoint(
     message: ChatMessage,
     current_user: User = Depends(get_current_user),
@@ -197,7 +197,7 @@ async def chat_endpoint(
     }
 
 # Endpoint para eliminar un PDF
-@app.delete("/delete-pdf/")
+@app.delete("/delete-pdf/",tags=["Files"])
 async def delete_pdf(
     request: DeletePDFRequest,
     current_user: User = Depends(get_current_user),
@@ -227,14 +227,14 @@ async def delete_pdf(
     return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
 
 # Endpoint para obtener la lista de PDFs procesados
-@app.get("/get-pdfs/")
+@app.get("/get-pdfs/",tags=["Files"])
 async def get_pdfs(current_user: User = Depends(get_current_user)):
     # Filtrar los PDFs que pertenecen al usuario actual
     user_pdfs = get_pdfs_by_user(current_user.username)
     return {"pdfs": user_pdfs}
 
 
-@app.post("/new-chat/")
+@app.post("/new-chat/", tags=["Chat"])
 async def new_chat(current_user: User = Depends(get_current_user)):
     """
     Crea un nuevo chat, almacena el chat anterior en Chroma y limpia el buffer.
@@ -270,7 +270,7 @@ async def new_chat(current_user: User = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al crear un nuevo chat: {str(e)}")
     
-@app.get("/chat-history/{chat_id}")
+@app.get("/chat-history/{chat_id}", tags=["Chat"])
 async def get_chat_history_endpoint(
     chat_id: str,
     current_user: User = Depends(get_current_user),
@@ -318,7 +318,7 @@ async def get_chat_history_endpoint(
         "history": chat_history
     }
 
-@app.get("/chat-list/")
+@app.get("/chat-list/", tags=["Chat"])
 async def get_chat_list(current_user: User = Depends(get_current_user)):
     """
     Obtiene una lista de todos los chats del usuario.
@@ -359,7 +359,7 @@ async def get_chat_list(current_user: User = Depends(get_current_user)):
 
     return {"chats": chat_list}
 
-@app.post("/load-chat/")
+@app.post("/load-chat/", tags=["Chat"])
 async def load_chat(
     chat_id: str,
     current_user: User = Depends(get_current_user),
