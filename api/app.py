@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, Literal
 from src.get_data import process_and_store_text_data
 from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file, get_pdfs_by_user, is_pdf_owned_by_user
-from src.chat import chat
+from src.chat import chat, save_chat_message, get_chat_history,generate_chat_id
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 import uvicorn
 from langchain.memory import ConversationBufferMemory
@@ -14,6 +14,7 @@ import os
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 from config.auth import *
 from config.database import *
+
 app = FastAPI()
 
 # Crear la carpeta "users" si no existe
@@ -45,8 +46,7 @@ class TextControl(BaseModel):
 
 # Modelo para el mensaje de chat
 class ChatMessage(BaseModel):
-    msg: str
-    reset: bool = False  # Opción para resetear la conversación
+    msg: str  # Solo el mensaje del usuario
 
 # Modelo para eliminar un PDF
 class DeletePDFRequest(BaseModel):
@@ -165,8 +165,36 @@ async def chat_endpoint(
     message: ChatMessage,
     current_user: User = Depends(get_current_user),
 ):
-    response = chat(msg=message.msg, buffer=conversation_memory, username=current_user.username)
-    return {"response": response}
+    """
+    Procesa un mensaje de chat y genera una respuesta.
+
+    Args:
+        message (ChatMessage): El mensaje del usuario.
+        current_user (User): El usuario actual.
+
+    Returns:
+        dict: La respuesta del bot, el chat_id y el historial del chat.
+    """
+    # Generar un chat_id automáticamente
+    chat_id = generate_chat_id(current_user.username)
+
+    # Guardar el mensaje del usuario
+    save_chat_message(chat_id, current_user.username, message.msg, role="user")
+
+    # Generar la respuesta del bot
+    bot_response = chat(msg=message.msg, buffer=conversation_memory, username=current_user.username)
+
+    # Guardar la respuesta del bot
+    save_chat_message(chat_id, current_user.username, bot_response, role="assistant")
+
+    # Recuperar el historial del chat
+    chat_history = get_chat_history(chat_id, current_user.username)
+
+    return {
+        "response": bot_response,
+        "chat_id": chat_id,
+        "history": chat_history
+    }
 
 # Endpoint para eliminar un PDF
 @app.delete("/delete-pdf/")
@@ -205,17 +233,171 @@ async def get_pdfs(current_user: User = Depends(get_current_user)):
     user_pdfs = get_pdfs_by_user(current_user.username)
     return {"pdfs": user_pdfs}
 
-# Endpoint para resetear el buffer de la conversación
-@app.put("/reset-chat/")
-async def reset_chat_buffer():
+
+@app.post("/new-chat/")
+async def new_chat(current_user: User = Depends(get_current_user)):
+    """
+    Crea un nuevo chat, almacena el chat anterior en Chroma y limpia el buffer.
+    """
     try:
-        conversation_memory.clear()  # Limpiar el buffer de la conversación
-        return {"message": "El buffer del chat ha sido reseteado correctamente."}
+        # Obtener el historial actual del buffer
+        chat_history = conversation_memory.load_memory_variables({})["history"]
+
+        # Verificar si el historial es una lista de diccionarios
+        if isinstance(chat_history, str):
+            # Si es una cadena, convertirla en una lista de un solo mensaje
+            chat_history = [{"text": chat_history, "role": "user"}]
+        elif not isinstance(chat_history, list):
+            # Si no es una lista, inicializar como una lista vacía
+            chat_history = []
+
+        # Si hay historial, guardarlo en Chroma
+        if chat_history:
+            chat_id = f"chat_{current_user.username}_{datetime.now().timestamp()}"
+            for message in chat_history:
+                # Asegurarse de que el mensaje tenga el formato correcto
+                if isinstance(message, dict) and "text" in message and "role" in message:
+                    save_chat_message(chat_id, current_user.username, message["text"], message["role"])
+                else:
+                    # Si el mensaje no tiene el formato correcto, ignorarlo o manejarlo
+                    print(f"Formato de mensaje no válido: {message}")
+
+        # Limpiar el buffer
+        conversation_memory.clear()
+
+        return {"message": "Nuevo chat creado correctamente.", "chat_id": chat_id}
+
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al resetear el buffer: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al crear un nuevo chat: {str(e)}")
+    
+@app.get("/chat-history/{chat_id}")
+async def get_chat_history_endpoint(
+    chat_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Recupera el historial de un chat específico.
+
+    Args:
+        chat_id (str): El ID único del chat.
+        current_user (User): El usuario actual.
+
+    Returns:
+        dict: El historial del chat.
+    """
+    embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    chat_history_collection = Chroma(
+        embedding_function=embed_model,
+        persist_directory="./db/chat_history_db",
+        collection_name="chat_history"
+    )
+    # Filtrar mensajes por chat_id y username
+    filter = {
+        "$and": [
+            {"chat_id": chat_id},
+            {"username": current_user.username}
+        ]
+    }
+
+    # Obtener los mensajes de Chroma
+    results = chat_history_collection.get(where=filter, include=["metadatas", "documents"])
+
+    # Formatear los resultados
+    chat_history = []
+    if "metadatas" in results and "documents" in results:
+        for metadata, text in zip(results["metadatas"], results["documents"]):
+            chat_history.append({
+                "text": text,
+                "role": metadata["role"],
+                "timestamp": metadata["timestamp"]
+            })
+
+    return {
+        "chat_id": chat_id,
+        "history": chat_history
+    }
+
+@app.get("/chat-list/")
+async def get_chat_list(current_user: User = Depends(get_current_user)):
+    """
+    Obtiene una lista de todos los chats del usuario.
+
+    Args:
+        current_user (User): El usuario actual.
+
+    Returns:
+        list: Lista de chats con su ID y título.
+    """
+    embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    chat_history_collection = Chroma(
+        embedding_function=embed_model,
+        persist_directory="./db/chat_history_db",
+        collection_name="chat_history"
+    )
+    # Filtrar mensajes por username
+    filter = {"username": current_user.username}
+
+    # Obtener los mensajes de Chroma
+    results = chat_history_collection.get(where=filter, include=["metadatas", "documents"])
+
+    # Agrupar mensajes por chat_id
+    chats = {}
+    if "metadatas" in results and "documents" in results:
+        for metadata, text in zip(results["metadatas"], results["documents"]):
+            chat_id = metadata["chat_id"]
+            if chat_id not in chats:
+                chats[chat_id] = {
+                    "chat_id": chat_id,
+                    "title": text[:50] + "..." if len(text) > 50 else text,  # Título = primeros 50 caracteres
+                    "timestamp": metadata["timestamp"]
+                }
+
+    # Convertir a lista
+    chat_list = list(chats.values())
+
+    return {"chats": chat_list}
+
+@app.post("/load-chat/")
+async def load_chat(
+    chat_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Carga un chat pasado para continuar la conversación.
+
+    Args:
+        chat_id (str): El ID único del chat.
+        current_user (User): El usuario actual.
+
+    Returns:
+        dict: El historial del chat cargado.
+    """
+    # Recuperar el historial del chat
+    chat_history = get_chat_history(chat_id, current_user.username)
+
+    if not chat_history:
+        raise HTTPException(status_code=404, detail="No se encontró el chat especificado.")
+
+    # Limpiar el buffer de la conversación actual
+    conversation_memory.clear()
+
+    # Cargar el historial en la memoria de la conversación
+    for message in chat_history:
+        if message["role"] == "user":
+            conversation_memory.chat_memory.add_user_message(message["text"])
+        elif message["role"] == "assistant":
+            conversation_memory.chat_memory.add_ai_message(message["text"])
+
+    return {
+        "message": "Chat cargado correctamente.",
+        "chat_id": chat_id,
+        "history": chat_history
+    }
+
+
+
 
 if __name__ == '__main__':
     uvicorn.run(app, host='127.0.0.1', port=8000)

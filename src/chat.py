@@ -5,7 +5,8 @@ from langchain.prompts import PromptTemplate
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.retrievers import EnsembleRetriever
-
+from datetime import datetime
+import uuid
 
 
 def chat(msg: str, buffer, username: str) -> str:
@@ -30,7 +31,7 @@ def chat(msg: str, buffer, username: str) -> str:
         collection_name="pdf_data"
     )
 
-    # Cargar el vectorstore de textos
+    # Cargar el vectorstore de textos (datos de las máquinas)
     vectorstore_txt = Chroma(
         embedding_function=embed_model,
         persist_directory="./db/text_db",
@@ -42,7 +43,7 @@ def chat(msg: str, buffer, username: str) -> str:
         search_kwargs={'k': 3, 'filter': {"username": username}}  # Filtrar por usuario
     )
 
-    # Crear un retriever para textos (compartido entre usuarios)
+    # Crear un retriever para textos (datos de las máquinas)
     retriever_txt = vectorstore_txt.as_retriever(search_kwargs={'k': 3})
 
     # Crear el EnsembleRetriever
@@ -51,39 +52,24 @@ def chat(msg: str, buffer, username: str) -> str:
         weights=[0.5, 0.5]  # Pesos iguales para ambos retrievers
     )
 
-    # Verificar si el usuario tiene documentos en el vectorstore de PDFs
-    collection_pdf = vectorstore_pdf._client.get_collection("pdf_data")
-    user_docs = collection_pdf.get(where={"username": username}, include=["metadatas", "documents"])
-
-    if not user_docs or not user_docs.get("metadatas"):
-        # Si el usuario no tiene documentos, devolver un mensaje
-        return "No tienes archivos PDF cargados. Por favor, sube un archivo PDF para poder consultarlo."
-
-    # Depuración: Imprimir los documentos recuperados
-    print("Documentos recuperados para el usuario:", user_docs["documents"])
-
+    # Definir el prompt
     custom_prompt_template = """
-    Eres un asistente que responde preguntas basadas en los archivos PDF que el usuario ha subido.
-    Solo puedes responder preguntas sobre los archivos PDF que el usuario actual ha cargado.
-    Si la pregunta no está relacionada con los archivos del usuario, responde que no tienes esa información.
-
-    Aquí está el contexto relevante de los archivos del usuario:
-    {context}
-
-    Historial de conversación:
-    {history}
-
-    Pregunta:
-    {question}
+    Si la pregunta es sobre los datos de las máquinas, responde basado en los datos de las máquinas.
+    Si la pregunta es sobre un archivo, responde basado en el contenido del archivo PDF.
+    Si la pregunta necesita que combines ambos datos, hazlo para la predicción final.
+    Contexto: {context}
+    Historial de conversación: {history}
+    Pregunta: {question}
 
     Responde siempre en español.
     Respuesta:
     """
+
     prompt = PromptTemplate(
         template=custom_prompt_template,
         input_variables=['context', 'history', 'question']
     )
-    
+
     qa = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type='stuff',
@@ -98,3 +84,90 @@ def chat(msg: str, buffer, username: str) -> str:
 
     response = qa.invoke({"query": msg})
     return response['result']
+
+
+def generate_chat_id(username: str) -> str:
+    """
+    Genera un ID único para el chat.
+
+    Args:
+        username (str): El nombre de usuario.
+
+    Returns:
+        str: Un ID único en formato "chat_{username}_{uuid}".
+    """
+    unique_id = str(uuid.uuid4())  # Genera un UUID único
+    return f"chat_{username}_{unique_id}"
+
+def save_chat_message(chat_id: str, username: str, text: str, role: str = "user"):
+    """
+    Guarda un mensaje en el historial de chat.
+
+    Args:
+        chat_id (str): El ID único del chat.
+        username (str): El nombre de usuario.
+        text (str): El contenido del mensaje.
+        role (str): El rol del mensaje ("user" o "assistant").
+    """
+
+    embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    chat_history_collection = Chroma(
+        embedding_function=embed_model,
+        persist_directory="./db/chat_history_db",
+        collection_name="chat_history"
+    )
+    # Crear metadatos para el mensaje
+    metadata = {
+        "chat_id": chat_id,
+        "username": username,
+        "timestamp": datetime.now().isoformat(),
+        "role": role
+    }
+
+    # Guardar el mensaje en Chroma
+    chat_history_collection.add_texts(texts=[text], metadatas=[metadata])
+
+
+
+
+def get_chat_history(chat_id: str, username: str):
+    """
+    Recupera el historial de un chat específico.
+
+    Args:
+        chat_id (str): El ID único del chat.
+        username (str): El nombre de usuario.
+
+    Returns:
+        list: Lista de mensajes en el chat.
+    """
+    embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    chat_history_collection = Chroma(
+        embedding_function=embed_model,
+        persist_directory="./db/chat_history_db",
+        collection_name="chat_history"
+    )
+    # Filtrar mensajes por chat_id y username
+    filter = {
+        "$and": [
+            {"chat_id": chat_id},
+            {"username": username}
+        ]
+    }
+
+    # Obtener los mensajes de Chroma
+    results = chat_history_collection.get(where=filter, include=["metadatas", "documents"])
+
+    # Formatear los resultados
+    chat_history = []
+    if "metadatas" in results and "documents" in results:
+        for metadata, text in zip(results["metadatas"], results["documents"]):
+            chat_history.append({
+                "text": text,
+                "role": metadata["role"],
+                "timestamp": metadata["timestamp"]
+            })
+
+    return chat_history
