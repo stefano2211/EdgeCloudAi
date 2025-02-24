@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional, Literal
 from src.get_data import process_and_store_text_data
-from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file
+from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file, get_pdfs_by_user, is_pdf_owned_by_user
 from src.chat import chat
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 import uvicorn
@@ -117,7 +117,10 @@ async def text_embed_service(control: TextControl):
 
 # Endpoint para subir un archivo PDF
 @app.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="¡Por favor, sube un archivo PDF!")
 
@@ -127,19 +130,24 @@ async def upload_file(file: UploadFile = File(...)):
     os.makedirs(os.path.dirname(file_location), exist_ok=True)
 
     try:
+        # Guardar el archivo PDF temporalmente
         with open(file_location, "wb") as f:
             content = await file.read()
             f.write(content)
+
+        # Vectorizar el archivo PDF y asociarlo con el usuario
+        create_vectorstore(file_location, username=current_user.username)
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ocurrió un error al guardar el archivo: {str(e)}")
+        # Eliminar el archivo temporal en caso de error
+        if os.path.exists(file_location):
+            os.remove(file_location)
+        raise HTTPException(status_code=500, detail=f"Error al procesar el archivo PDF: {str(e)}")
 
-    upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Vectorizar el archivo PDF
-    create_vectorstore(file_location)
-
-    # Eliminar el archivo PDF del disco
-    os.remove(file_location)
+    finally:
+        # Eliminar el archivo PDF del disco
+        if os.path.exists(file_location):
+            os.remove(file_location)
 
     # Agregar el nombre del archivo a la lista de PDFs procesados
     processed_pdfs.append(safe_filename)
@@ -148,34 +156,54 @@ async def upload_file(file: UploadFile = File(...)):
         "pdf_name": safe_filename,
         "Content-Type": file.content_type,
         "file_size": f"{file.size / 1_048_576:.2f} MB",
-        "upload_time": upload_time,
+        "upload_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 # Endpoint para generar una respuesta a un mensaje
 @app.post("/chat/")
-async def quick_response(message: ChatMessage):
-    response = chat(msg=message.msg, buffer=conversation_memory)
+async def chat_endpoint(
+    message: ChatMessage,
+    current_user: User = Depends(get_current_user),
+):
+    response = chat(msg=message.msg, buffer=conversation_memory, username=current_user.username)
     return {"response": response}
 
 # Endpoint para eliminar un PDF
 @app.delete("/delete-pdf/")
-async def delete_pdf(request: DeletePDFRequest):
+async def delete_pdf(
+    request: DeletePDFRequest,
+    current_user: User = Depends(get_current_user),
+):
     filename = sanitize_filename(request.filename)
-    if filename not in processed_pdfs:
+
+    # Obtener la lista de PDFs del usuario actual
+    user_pdfs = get_pdfs_by_user(current_user.username)
+
+    # Verificar si el archivo existe en la lista de PDFs del usuario
+    if filename not in user_pdfs:
         raise HTTPException(
             status_code=404,
-            detail=f"El archivo '{filename}' no está en la lista de PDFs procesados."
+            detail=f"El archivo '{filename}' no existe o no pertenece al usuario."
         )
-    # Eliminar los embeddings asociados con el PDF
-    delete_pdf_from_retriever(filename)
-    # Eliminar el nombre del archivo de la lista de PDFs procesados
-    processed_pdfs.remove(filename)
+
+    # Verificar que el PDF pertenece al usuario actual (opcional, redundante)
+    if not is_pdf_owned_by_user(filename, current_user.username):
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para eliminar este archivo."
+        )
+
+    # Eliminar los embeddings asociados con el PDF y el usuario
+    delete_pdf_from_retriever(filename, current_user.username)
+
     return {"message": f"El archivo '{filename}' ha sido borrado correctamente."}
 
 # Endpoint para obtener la lista de PDFs procesados
 @app.get("/get-pdfs/")
-async def get_pdfs():
-    return {"pdfs": processed_pdfs}
+async def get_pdfs(current_user: User = Depends(get_current_user)):
+    # Filtrar los PDFs que pertenecen al usuario actual
+    user_pdfs = get_pdfs_by_user(current_user.username)
+    return {"pdfs": user_pdfs}
 
 # Endpoint para resetear el buffer de la conversación
 @app.put("/reset-chat/")
