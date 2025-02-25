@@ -10,7 +10,7 @@ os.makedirs("users", exist_ok=True)
 
 
 # Configuración de la base de datos SQLite (guardada en la carpeta "users")
-DATABASE_URL = "sqlite:///./users/test.db"
+DATABASE_URL = "sqlite:///./users/users.db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

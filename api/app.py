@@ -15,10 +15,13 @@ from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 from config.auth import *
 from config.database import *
 
+
 app = FastAPI()
 
 # Crear la carpeta "users" si no existe
 os.makedirs("users", exist_ok=True)
+
+
 
 processed_pdfs = []
 

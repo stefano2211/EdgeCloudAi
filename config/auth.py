@@ -6,7 +6,7 @@ from .database import get_db, User, get_user
 from passlib.context import CryptContext
 
 # Configuración de JWT
-SECRET_KEY = "your-secret-key"  # Cambia esto por una clave segura
+SECRET_KEY = "2980"  # Cambia esto por una clave segura
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
