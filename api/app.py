@@ -195,6 +195,8 @@ async def chat_endpoint(
 
     return {
         "response": bot_response,
+        "chat_id": chat_id,
+        "history": chat_history
     }
 
 # Endpoint para eliminar un PDF
