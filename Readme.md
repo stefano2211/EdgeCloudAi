@@ -1,6 +1,83 @@
 # Edge AI
 
+```mermaid
+graph TB
+    User((User))
 
+    subgraph "FastAPI Backend"
+        APIServer["API Server<br>(FastAPI)"]
+        
+        subgraph "Authentication Components"
+            AuthManager["Auth Manager<br>(OAuth2 + JWT)"]
+            UserManager["User Manager<br>(SQLAlchemy)"]
+        end
+
+        subgraph "File Processing Components"
+            FileUploader["File Uploader<br>(FastAPI File)"]
+            PDFProcessor["PDF Processor<br>(PyPDF)"]
+            TextProcessor["Text Processor<br>(LangChain)"]
+        end
+
+        subgraph "Chat Components"
+            ChatManager["Chat Manager<br>(LangChain)"]
+            ConversationMemory["Conversation Memory<br>(Buffer Memory)"]
+            LLMService["LLM Service<br>(Ollama)"]
+        end
+
+        subgraph "Vector Store Components"
+            EmbeddingService["Embedding Service<br>(FastEmbed)"]
+            VectorStoreManager["Vector Store Manager<br>(ChromaDB)"]
+        end
+    end
+
+    subgraph "Data Storage"
+        UserDB[("User Database<br>(SQLite)")]
+        PDFVectorDB[("PDF Vector Store<br>(ChromaDB)")]
+        TextVectorDB[("Text Vector Store<br>(ChromaDB)")]
+        ChatHistoryDB[("Chat History Store<br>(ChromaDB)")]
+    end
+
+    subgraph "External Services"
+        OllamaLLM["Ollama LLM<br>(External LLM)"]
+    end
+
+    %% User interactions
+    User -->|"Authenticates"| APIServer
+    User -->|"Uploads Files"| APIServer
+    User -->|"Chats"| APIServer
+
+    %% API Server connections
+    APIServer -->|"Uses"| AuthManager
+    APIServer -->|"Uses"| FileUploader
+    APIServer -->|"Uses"| ChatManager
+
+    %% Authentication flow
+    AuthManager -->|"Manages"| UserManager
+    UserManager -->|"Stores"| UserDB
+
+    %% File processing flow
+    FileUploader -->|"Processes"| PDFProcessor
+    FileUploader -->|"Processes"| TextProcessor
+    PDFProcessor -->|"Uses"| EmbeddingService
+    TextProcessor -->|"Uses"| EmbeddingService
+
+    %% Vector store interactions
+    EmbeddingService -->|"Stores"| VectorStoreManager
+    VectorStoreManager -->|"Manages"| PDFVectorDB
+    VectorStoreManager -->|"Manages"| TextVectorDB
+    VectorStoreManager -->|"Manages"| ChatHistoryDB
+
+    %% Chat flow
+    ChatManager -->|"Uses"| ConversationMemory
+    ChatManager -->|"Uses"| LLMService
+    ChatManager -->|"Retrieves from"| VectorStoreManager
+    LLMService -->|"Calls"| OllamaLLM
+
+    %% Storage relationships
+    PDFProcessor -->|"Stores vectors"| PDFVectorDB
+    TextProcessor -->|"Stores vectors"| TextVectorDB
+    ChatManager -->|"Stores history"| ChatHistoryDB
+```
 ## Description
 This is a prototype of an edge cloud system specializing in AI, designed to empower businesses utilizing LangChain. It facilitates the creation of Retrieval Augmented Generation (RAG) AI models trained exclusively on a company's or organization's proprietary data.
 
