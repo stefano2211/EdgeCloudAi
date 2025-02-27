@@ -97,7 +97,8 @@ def generate_chat_id(username: str) -> str:
         str: Un ID único en formato "chat_{username}_{uuid}".
     """
     unique_id = str(uuid.uuid4())  # Genera un UUID único
-    return f"chat_{username}_{unique_id}"
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")  # Añade un timestamp
+    return f"chat_{username}_{timestamp}_{unique_id}"
 
 def save_chat_message(chat_id: str, username: str, text: str, role: str = "user"):
     """
