@@ -101,28 +101,29 @@ def generate_chat_id(username: str) -> str:
 
 def save_chat_message(chat_id: str, username: str, text: str, role: str = "user"):
     """
-    Guarda un mensaje en el historial de chat.
+    Guarda un mensaje en el historial de chat en Chroma.
 
     Args:
-        chat_id (str): El ID único del chat.
-        username (str): El nombre de usuario.
-        text (str): El contenido del mensaje.
-        role (str): El rol del mensaje ("user" o "assistant").
+        chat_id (str): ID único del chat.
+        username (str): Nombre del usuario.
+        text (str): Contenido del mensaje.
+        role (str): Rol del mensaje ("user" o "assistant").
     """
-
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
+    # Inicializar Chroma para el historial de chat
     chat_history_collection = Chroma(
         embedding_function=embed_model,
         persist_directory="./db/chat_history_db",
         collection_name="chat_history"
     )
+
     # Crear metadatos para el mensaje
     metadata = {
         "chat_id": chat_id,
         "username": username,
-        "timestamp": datetime.now().isoformat(),
-        "role": role
+        "role": role,
+        "timestamp": datetime.now().isoformat()
     }
 
     # Guardar el mensaje en Chroma
@@ -130,25 +131,26 @@ def save_chat_message(chat_id: str, username: str, text: str, role: str = "user"
 
 
 
-
 def get_chat_history(chat_id: str, username: str):
     """
-    Recupera el historial de un chat específico.
+    Carga el historial de un chat específico desde Chroma.
 
     Args:
-        chat_id (str): El ID único del chat.
-        username (str): El nombre de usuario.
+        chat_id (str): ID único del chat.
+        username (str): Nombre del usuario.
 
     Returns:
-        list: Lista de mensajes en el chat.
+        list: Lista de mensajes en el formato {"role": str, "text": str}.
     """
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
+    # Inicializar Chroma para el historial de chat
     chat_history_collection = Chroma(
         embedding_function=embed_model,
         persist_directory="./db/chat_history_db",
         collection_name="chat_history"
     )
+
     # Filtrar mensajes por chat_id y username
     filter = {
         "$and": [
@@ -165,9 +167,92 @@ def get_chat_history(chat_id: str, username: str):
     if "metadatas" in results and "documents" in results:
         for metadata, text in zip(results["metadatas"], results["documents"]):
             chat_history.append({
-                "text": text,
                 "role": metadata["role"],
+                "text": text,
                 "timestamp": metadata["timestamp"]
             })
 
     return chat_history
+
+
+def load_chat_history(chat_id: str, username: str):
+    """
+    Carga el historial de un chat específico desde Chroma.
+
+    Args:
+        chat_id (str): ID único del chat.
+        username (str): Nombre del usuario.
+
+    Returns:
+        list: Lista de mensajes en el formato {"role": str, "text": str}.
+    """
+    embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    # Inicializar Chroma para el historial de chat
+    chat_history_collection = Chroma(
+        embedding_function=embed_model,
+        persist_directory="./db/chat_history_db",
+        collection_name="chat_history"
+    )
+
+    # Filtrar mensajes por chat_id y username
+    filter = {
+        "$and": [
+            {"chat_id": chat_id},
+            {"username": username}
+        ]
+    }
+
+    # Obtener los mensajes de Chroma
+    results = chat_history_collection.get(where=filter, include=["metadatas", "documents"])
+
+    # Formatear los resultados
+    chat_history = []
+    if "metadatas" in results and "documents" in results:
+        for metadata, text in zip(results["metadatas"], results["documents"]):
+            chat_history.append({
+                "role": metadata["role"],
+                "text": text,
+                "timestamp": metadata["timestamp"]
+            })
+
+    return chat_history
+
+
+def load_existing_chat(chat_id: str, username: str, memory: ConversationBufferMemory):
+    """
+    Carga un chat existente y reconstruye la memoria con el historial.
+
+    Args:
+        chat_id (str): ID único del chat.
+        username (str): Nombre del usuario.
+        memory (ConversationBufferMemory): Memoria de la conversación actual.
+    """
+    # Cargar el historial del chat
+    chat_history = load_chat_history(chat_id, username)
+
+    # Reconstruir la memoria con el historial
+    for message in chat_history:
+        if message["role"] == "user":
+            memory.chat_memory.add_user_message(message["text"])
+        elif message["role"] == "assistant":
+            memory.chat_memory.add_ai_message(message["text"])
+
+def create_new_chat(username: str, memory: ConversationBufferMemory):
+    """
+    Crea un nuevo chat, generando un nuevo chat_id y limpiando la memoria.
+
+    Args:
+        username (str): Nombre del usuario.
+        memory (ConversationBufferMemory): Memoria de la conversación actual.
+
+    Returns:
+        str: Nuevo chat_id.
+    """
+    # Generar un nuevo chat_id
+    chat_id = generate_chat_id(username)
+
+    # Limpiar la memoria de la conversación actual
+    memory.clear()
+
+    return chat_id
