@@ -5,8 +5,9 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional, Literal
 from src.get_data import process_and_store_text_data
-from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file, get_pdfs_by_user, is_pdf_owned_by_user
+from src.upload_file import *
 from src.chat import *
+from src.lora_train import *
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 import uvicorn
 from langchain.memory import ConversationBufferMemory
@@ -14,6 +15,7 @@ import os
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 from config.auth import *
 from config.database import *
+import shutil
 
 
 app = FastAPI()
@@ -55,6 +57,37 @@ class ChatMessage(BaseModel):
 class DeletePDFRequest(BaseModel):
     filename: str
 
+@app.post("/train-with-json/", tags=["Training"])
+async def train_with_json(
+    file: UploadFile = File(...),
+    learning_rate: float = 5e-5,
+    epochs: int = 10,
+    batch_size: int = 4,
+):
+    """
+    Endpoint para entrenar el modelo con un archivo JSON que contiene pares de input y output.
+    """
+    # Verificar que el archivo sea JSON
+    if file.content_type != "application/json":
+        raise HTTPException(status_code=400, detail="El archivo debe ser un JSON.")
+
+    # Guardar el archivo temporalmente
+    temp_file_path = f"./temp/{file.filename}"
+    os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+    with open(temp_file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        # Entrenar el modelo con el archivo JSON
+        train_lora_incremental(temp_file_path, learning_rate, epochs, batch_size)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error durante el entrenamiento: {str(e)}")
+    finally:
+        # Eliminar el archivo temporal
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+    return {"message": "Modelo entrenado exitosamente."}
 # Endpoint para registrar un nuevo usuario
 @app.post("/register/", tags=["Autentication"])
 async def register(user: UserCreate):

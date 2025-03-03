@@ -5,8 +5,21 @@ from fastapi import HTTPException
 import re
 import os
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
+import json
 
+def load_json_data(file_path):
+    """
+    Carga un archivo JSON con pares de input y output.
 
+    Args:
+        file_path (str): Ruta al archivo JSON.
+
+    Returns:
+        list: Lista de diccionarios con pares de input y output.
+    """
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data
 
 def process_file(filepath: str, username: str) -> tuple[list[str], list[dict]]:
     """

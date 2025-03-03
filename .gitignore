@@ -91,3 +91,6 @@ db
 
 # Hydra logs
 outputs
+
+# model docs
+models

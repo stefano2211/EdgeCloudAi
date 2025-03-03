@@ -7,6 +7,11 @@ from langchain.chains import RetrievalQA
 from langchain.retrievers import EnsembleRetriever
 from datetime import datetime
 import uuid
+from langchain_community.llms import HuggingFacePipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from src.lora_train import load_lora_model
+
+
 
 
 def chat(msg: str, buffer, username: str) -> str:
@@ -21,7 +26,21 @@ def chat(msg: str, buffer, username: str) -> str:
     Returns:
         str: La respuesta generada por el modelo.
     """
-    llm = Ollama(model="llama3.1:8b")
+    model, tokenizer = load_lora_model()
+
+    # Crear un pipeline de Hugging Face
+    hf_pipeline = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+        max_length=5120,
+        temperature=0.7,
+        top_p=0.9,
+        repetition_penalty=1.1,
+    )
+
+    # Envolver el pipeline en un objeto compatible con LangChain
+    llm = HuggingFacePipeline(pipeline=hf_pipeline)
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
     # Cargar el vectorstore de PDFs
@@ -54,15 +73,12 @@ def chat(msg: str, buffer, username: str) -> str:
 
     # Definir el prompt
     custom_prompt_template = """
-    Si la pregunta es sobre los datos de las máquinas, responde basado en los datos de las máquinas.
-    Si la pregunta es sobre un archivo, responde basado en el contenido del archivo PDF.
-    Si la pregunta necesita que combines ambos datos, hazlo para la predicción final.
-    Contexto: {context}
-    Historial de conversación: {history}
-    Pregunta: {question}
+    Context: {context}
+    Conversation history: {history}
+    Question: {question}
 
-    Responde siempre en español.
-    Respuesta:
+    Always respond in English.
+    Response:
     """
 
     prompt = PromptTemplate(
@@ -83,7 +99,8 @@ def chat(msg: str, buffer, username: str) -> str:
     )
 
     response = qa.invoke({"query": msg})
-    return response['result']
+    cleaned_response = response['result'].strip()
+    return cleaned_response
 
 
 def generate_chat_id(username: str) -> str:
