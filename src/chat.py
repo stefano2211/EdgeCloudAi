@@ -33,7 +33,7 @@ def chat(msg: str, buffer, username: str) -> str:
         "text-generation",
         model=model,
         tokenizer=tokenizer,
-        max_length=5120,
+        max_length=512,
         temperature=0.7,
         top_p=0.9,
         repetition_penalty=1.1,
