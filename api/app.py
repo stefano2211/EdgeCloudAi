@@ -7,6 +7,9 @@ from typing import Optional, Literal
 from src.get_data import process_and_store_text_data
 from src.upload_files import create_vectorstore, sanitize_filename, delete_pdf_from_retriever, delete_pdf_file, get_pdfs_by_user, is_pdf_owned_by_user
 from src.chat import *
+from src.lora.fine_tuning import *
+from src.lora.model_utils import *
+from src.lora.ollama_utils import *
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 import uvicorn
 from langchain.memory import ConversationBufferMemory
@@ -54,6 +57,62 @@ class ChatMessage(BaseModel):
 # Modelo para eliminar un PDF
 class DeletePDFRequest(BaseModel):
     filename: str
+
+
+class PDFFineTuningRequest(BaseModel):
+    file: UploadFile = File(...)
+
+class HistoricalFineTuningRequest(BaseModel):
+    file: UploadFile = File(...)
+
+# Endpoint para fine-tuning con datos de PDF
+@app.post("/fine-tune-pdf/")
+async def fine_tune_pdf_endpoint(file: UploadFile = File(...)):
+    try:
+        # Guardar el archivo temporalmente
+        file_location = f"./temp/{file.filename}"
+        os.makedirs(os.path.dirname(file_location), exist_ok=True)
+        with open(file_location, "wb") as f:
+            f.write(await file.read())
+
+        # Llamar a la función de fine-tuning
+        result = fine_tune_pdf(file_location)
+        return JSONResponse(content={"message": result})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Eliminar el archivo temporal
+        if os.path.exists(file_location):
+            os.remove(file_location)
+
+# Endpoint para fine-tuning con datos históricos
+@app.post("/fine-tune-historical/")
+async def fine_tune_historical_endpoint(file: UploadFile = File(...)):
+    try:
+        # Guardar el archivo temporalmente
+        file_location = f"./temp/{file.filename}"
+        os.makedirs(os.path.dirname(file_location), exist_ok=True)
+        with open(file_location, "wb") as f:
+            f.write(await file.read())
+
+        # Llamar a la función de fine-tuning
+        result = fine_tune_historical(file_location)
+        return JSONResponse(content={"message": result})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Eliminar el archivo temporal
+        if os.path.exists(file_location):
+            os.remove(file_location)
+
+# Endpoint para subir el modelo a Ollama
+@app.post("/upload-to-ollama/")
+async def upload_to_ollama_endpoint():
+    try:
+        result = upload_to_ollama()
+        return JSONResponse(content={"message": result})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint para registrar un nuevo usuario
 @app.post("/register/", tags=["Autentication"])
