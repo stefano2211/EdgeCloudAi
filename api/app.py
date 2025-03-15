@@ -66,7 +66,7 @@ class HistoricalFineTuningRequest(BaseModel):
     file: UploadFile = File(...)
 
 # Endpoint para fine-tuning con datos de PDF
-@app.post("/fine-tune-pdf/")
+@app.post("/fine-tune-pdf/", tags=["Fine-tuning"])
 async def fine_tune_pdf_endpoint(file: UploadFile = File(...)):
     try:
         # Guardar el archivo temporalmente
@@ -86,7 +86,7 @@ async def fine_tune_pdf_endpoint(file: UploadFile = File(...)):
             os.remove(file_location)
 
 # Endpoint para fine-tuning con datos históricos
-@app.post("/fine-tune-historical/")
+@app.post("/fine-tune-historical/", tags=["Fine-tuning"])
 async def fine_tune_historical_endpoint(file: UploadFile = File(...)):
     try:
         # Guardar el archivo temporalmente
@@ -106,10 +106,17 @@ async def fine_tune_historical_endpoint(file: UploadFile = File(...)):
             os.remove(file_location)
 
 # Endpoint para subir el modelo a Ollama
-@app.post("/upload-to-ollama/")
+@app.post("/upload-to-ollama/" , tags=["Fine-tuning"])
 async def upload_to_ollama_endpoint():
     try:
-        result = upload_to_ollama()
+        # Cargar el modelo más reciente si existe
+        loaded_model, loaded_tokenizer = load_latest_model()
+        if loaded_model is not None and loaded_tokenizer is not None:
+            global model, tokenizer
+            model, tokenizer = loaded_model, loaded_tokenizer
+
+        # Subir el modelo a Ollama
+        result = upload_to_ollama(model, tokenizer)
         return JSONResponse(content={"message": result})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

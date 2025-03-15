@@ -4,7 +4,7 @@ from unsloth import apply_chat_template
 from trl import SFTTrainer
 from transformers import TrainingArguments
 from unsloth import is_bfloat16_supported
-from model_utils import load_latest_model, save_model
+from model_utils import *
 
 def fine_tune_pdf(file_path):
     """
@@ -18,9 +18,9 @@ def fine_tune_pdf(file_path):
         from unsloth import FastLanguageModel
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
-            max_seq_length=max_seq_length,
-            dtype=dtype,
-            load_in_4bit=load_in_4bit,
+            max_seq_length=MAX_SEQ_LENGTH,
+            dtype=DTYPE,
+            load_in_4bit=LOAD_IN_4BIT,
         )
 
     # Cargar el dataset desde el archivo JSON
@@ -60,7 +60,7 @@ def fine_tune_pdf(file_path):
         tokenizer=tokenizer,
         train_dataset=dataset,
         dataset_text_field="text",
-        max_seq_length=max_seq_length,
+        max_seq_length=MAX_SEQ_LENGTH,
         dataset_num_proc=2,
         packing=False,
         args=TrainingArguments(
@@ -101,9 +101,9 @@ def fine_tune_historical(file_path):
         from unsloth import FastLanguageModel
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
-            max_seq_length=max_seq_length,
-            dtype=dtype,
-            load_in_4bit=load_in_4bit,
+            max_seq_length=MAX_SEQ_LENGTH,
+            dtype=DTYPE,
+            load_in_4bit=LOAD_IN_4BIT,
         )
 
     # Cargar el dataset desde el archivo CSV
@@ -153,7 +153,7 @@ def fine_tune_historical(file_path):
         tokenizer=tokenizer,
         train_dataset=dataset,
         dataset_text_field="text",
-        max_seq_length=max_seq_length,
+        max_seq_length=MAX_SEQ_LENGTH,
         dataset_num_proc=2,
         packing=False,
         args=TrainingArguments(
@@ -180,3 +180,4 @@ def fine_tune_historical(file_path):
     save_model(model, tokenizer)
 
     return "Fine-tuning completado y modelo guardado."
+

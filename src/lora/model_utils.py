@@ -1,9 +1,9 @@
 import os
 from unsloth import FastLanguageModel
 
-max_seq_length = 20000
-dtype = None
-load_in_4bit = True
+MAX_SEQ_LENGTH = 20000
+DTYPE= None
+LOAD_IN_4BIT = True
 
 def load_latest_model():
     """
@@ -13,9 +13,9 @@ def load_latest_model():
         print("Cargando modelo previamente entrenado...")
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name="trained_model",
-            max_seq_length=max_seq_length,
-            dtype=dtype,
-            load_in_4bit=load_in_4bit,
+            max_seq_length=MAX_SEQ_LENGTH,
+            dtype=DTYPE,
+            load_in_4bit=LOAD_IN_4BIT,
         )
         return model, tokenizer
     else:

@@ -1,9 +1,14 @@
 import subprocess
+from unsloth import FastLanguageModel  # Asegúrate de importar FastLanguageModel
 
-def upload_to_ollama():
+def upload_to_ollama(model, tokenizer):
     """
     Sube el modelo más reciente a Ollama.
     Si el modelo ya existe, lo elimina antes de subir el nuevo.
+
+    Args:
+        model: El modelo entrenado.
+        tokenizer: El tokenizer asociado al modelo.
     """
     model_name = "unsloth_model"  # Nombre del modelo en Ollama
 
@@ -20,7 +25,10 @@ def upload_to_ollama():
         return f"Error al verificar o eliminar el modelo existente: {e}"
 
     # Guardar el modelo en formato GGUF
-    model.save_pretrained_gguf("model", tokenizer)
+    try:
+        model.save_pretrained_gguf("model", tokenizer)
+    except Exception as e:
+        return f"Error al guardar el modelo en formato GGUF: {e}"
 
     # Subir el nuevo modelo a Ollama
     try:
