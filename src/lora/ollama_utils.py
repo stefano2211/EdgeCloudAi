@@ -32,7 +32,7 @@ def upload_to_ollama(model, tokenizer):
 
     # Subir el nuevo modelo a Ollama
     try:
-        subprocess.run(["ollama", "create", model_name, "-f", "./model/Modelfile"], check=True)
+        subprocess.run(["ollama", "create", model_name, "-f", "Modelfile"], check=True)
         return f"Modelo '{model_name}' subido a Ollama correctamente."
     except subprocess.CalledProcessError as e:
         return f"Error al subir el modelo a Ollama: {e}"
