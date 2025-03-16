@@ -21,7 +21,7 @@ def chat(msg: str, buffer, username: str) -> str:
     Returns:
         str: La respuesta generada por el modelo.
     """
-    llm = Ollama(model="llama3.1:8b")
+    llm = Ollama(model="unsloth_model")
     embed_model = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
     # Cargar el vectorstore de PDFs
