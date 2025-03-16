@@ -4,7 +4,7 @@ from unsloth import apply_chat_template
 from trl import SFTTrainer
 from transformers import TrainingArguments
 from unsloth import is_bfloat16_supported
-from model_utils import *
+from src.lora.model_utils import *
 
 def fine_tune_pdf(file_path):
     """

@@ -26,7 +26,7 @@ def upload_to_ollama(model, tokenizer):
 
     # Guardar el modelo en formato GGUF
     try:
-        model.save_pretrained_gguf("model", tokenizer)
+        model.save_pretrained_gguf("model", tokenizer,)
     except Exception as e:
         return f"Error al guardar el modelo en formato GGUF: {e}"
 
