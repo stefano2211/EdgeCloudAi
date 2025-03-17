@@ -67,6 +67,7 @@ def fine_tune_pdf(file_path):
         dataset,
         tokenizer=tokenizer,
         chat_template=chat_template,
+        default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",  # Optional
     )
 
     # Configurar el entrenador
@@ -174,7 +175,7 @@ def fine_tune_historical(file_path):
         dataset,
         tokenizer=tokenizer,
         chat_template=chat_template,
-        default_system_message="Eres un modelo especializado en el registro y análisis de datos históricos de una serie de modelos de máquinas. Tu función principal es procesar y generar respuestas basadas en datos técnicos y registros de operaciones de máquinas para hacer predicciones y análisis en conjunto.",
+        default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",  # Optional
     )
 
     # Configurar el entrenador
