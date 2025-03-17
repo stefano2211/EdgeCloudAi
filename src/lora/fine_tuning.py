@@ -10,6 +10,9 @@ def fine_tune_pdf(file_path):
     """
     Realiza fine-tuning con datos de un PDF en formato JSON.
     """
+
+    global model, tokenizer
+
     # Cargar el modelo más reciente si existe
     loaded_model, loaded_tokenizer = load_latest_model()
     if loaded_model is not None and loaded_tokenizer is not None:
@@ -109,6 +112,9 @@ def fine_tune_historical(file_path):
     """
     Realiza fine-tuning con datos históricos en formato CSV.
     """
+
+    global model, tokenizer
+
     # Cargar el modelo más reciente si existe
     loaded_model, loaded_tokenizer = load_latest_model()
     if loaded_model is not None and loaded_tokenizer is not None:
