@@ -5,20 +5,21 @@ from trl import SFTTrainer
 from transformers import TrainingArguments
 from unsloth import is_bfloat16_supported
 from src.lora.model_utils import *
+from unsloth import FastLanguageModel
 
 def fine_tune_pdf(file_path):
     """
     Realiza fine-tuning con datos de un PDF en formato JSON.
     """
 
-    global model, tokenizer
+    global model, tokenizer  # Asegúrate de que estás utilizando las variables globales
 
     # Cargar el modelo más reciente si existe
     loaded_model, loaded_tokenizer = load_latest_model()
     if loaded_model is not None and loaded_tokenizer is not None:
         model, tokenizer = loaded_model, loaded_tokenizer
     else:
-        from unsloth import FastLanguageModel
+        # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
             max_seq_length=MAX_SEQ_LENGTH,
@@ -110,17 +111,16 @@ def fine_tune_pdf(file_path):
 
 def fine_tune_historical(file_path):
     """
-    Realiza fine-tuning con datos históricos en formato CSV.
+    Realiza fine-tuning con datos de un PDF en formato JSON.
     """
-
-    global model, tokenizer
+    global model, tokenizer  # Asegúrate de que estás utilizando las variables globales
 
     # Cargar el modelo más reciente si existe
     loaded_model, loaded_tokenizer = load_latest_model()
     if loaded_model is not None and loaded_tokenizer is not None:
         model, tokenizer = loaded_model, loaded_tokenizer
     else:
-        from unsloth import FastLanguageModel
+        # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
             max_seq_length=MAX_SEQ_LENGTH,

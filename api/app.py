@@ -17,14 +17,25 @@ import os
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 from config.auth import *
 from config.database import *
-
+from unsloth import FastLanguageModel
 
 app = FastAPI()
 
 # Crear la carpeta "users" si no existe
 os.makedirs("users", exist_ok=True)
 
+# Configuración inicial del modelo
+max_seq_length = 20000
+dtype = None
+load_in_4bit = True
 
+# Cargar el modelo y tokenizer inicial
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+    max_seq_length=max_seq_length,
+    dtype=dtype,
+    load_in_4bit=load_in_4bit,
+)
 
 processed_pdfs = []
 
@@ -66,7 +77,7 @@ class HistoricalFineTuningRequest(BaseModel):
     file: UploadFile = File(...)
 
 # Endpoint para fine-tuning con datos de PDF
-@app.post("/fine-tune-pdf/", tags=["Fine-tuning"])
+@app.post("/fine-tune-pdf/")
 async def fine_tune_pdf_endpoint(file: UploadFile = File(...)):
     try:
         # Guardar el archivo temporalmente
