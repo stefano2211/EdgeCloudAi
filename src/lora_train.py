@@ -18,7 +18,7 @@ import os
 from src.upload_file import load_json_data
 
 # Configuración del modelo y tokenizer
-MODEL_NAME = "distilbert/distilgpt2"
+MODEL_NAME = "meta-llama/Llama-3.1-8B"
 MODEL_DIR = "./models/lora_adjusted_model"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
