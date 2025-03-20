@@ -6,12 +6,13 @@ from transformers import TrainingArguments
 from unsloth import is_bfloat16_supported
 from src.lora.model_utils import *
 from unsloth import FastLanguageModel
+from torch.nn import DataParallel
+from torch.cuda.amp import autocast
 
 def fine_tune_pdf(file_path):
     """
     Realiza fine-tuning con datos de un PDF en formato JSON.
     """
-
     global model, tokenizer  # Asegúrate de que estás utilizando las variables globales
 
     # Cargar el modelo más reciente si existe
@@ -26,21 +27,25 @@ def fine_tune_pdf(file_path):
             dtype=DTYPE,
             load_in_4bit=LOAD_IN_4BIT,
         )
-    
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r = 16, # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
-        target_modules = ["q_proj", "k_proj", "v_proj", "o_proj",
-                        "gate_proj", "up_proj", "down_proj",],
-        lora_alpha = 16,
-        lora_dropout = 0, # Supports any, but = 0 is optimized
-        bias = "none",    # Supports any, but = "none" is optimized
-        # [NEW] "unsloth" uses 30% less VRAM, fits 2x larger batch sizes!
-        use_gradient_checkpointing = "unsloth", # True or "unsloth" for very long context
-        random_state = 3407,
-        use_rslora = False,  # We support rank stabilized LoRA
-        loftq_config = None, # And LoftQ
-    )
+
+        # Añadir adaptadores LoRA al modelo
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=16,  # Rango de LoRA
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+            lora_alpha=16,
+            lora_dropout=0,
+            bias="none",
+            use_gradient_checkpointing="unsloth",
+            random_state=3407,
+            use_rslora=False,
+            loftq_config=None,
+        )
+
+    # Configurar el modelo para usar multi-GPU
+    if torch.cuda.device_count() > 1:
+        print(f"Usando {torch.cuda.device_count()} GPUs.")
+        model = DataParallel(model)
 
     # Cargar el dataset desde el archivo JSON
     with open(file_path, "r") as f:
@@ -71,7 +76,6 @@ def fine_tune_pdf(file_path):
         dataset,
         tokenizer=tokenizer,
         chat_template=chat_template,
-        default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",  # Optional
     )
 
     # Configurar el entrenador
@@ -101,8 +105,9 @@ def fine_tune_pdf(file_path):
         ),
     )
 
-    # Entrenar el modelo
-    trainer.train()
+    # Entrenar el modelo con precisión mixta
+    with autocast():
+        trainer.train()
 
     # Guardar el modelo
     save_model(model, tokenizer)
@@ -181,7 +186,7 @@ def fine_tune_historical(file_path):
         dataset,
         tokenizer=tokenizer,
         chat_template=chat_template,
-        default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",  # Optional
+        #default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",  # Optional
     )
 
     # Configurar el entrenador

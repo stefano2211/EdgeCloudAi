@@ -1,5 +1,6 @@
 import os
 from unsloth import FastLanguageModel
+import torch
 
 MAX_SEQ_LENGTH = 20000
 DTYPE= None
@@ -26,6 +27,9 @@ def save_model(model, tokenizer):
     """
     Guarda el modelo y el tokenizer en la carpeta trained_model.
     """
+
+    torch.cuda.empty_cache()
+
     model.save_pretrained("trained_model")
     tokenizer.save_pretrained("trained_model")
     print("Modelo guardado en trained_model.")

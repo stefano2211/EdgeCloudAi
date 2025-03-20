@@ -1,14 +1,12 @@
 import subprocess
-from unsloth import FastLanguageModel  # Asegúrate de importar FastLanguageModel
+from unsloth import FastLanguageModel  
+import torch
+
 
 def upload_to_ollama(model, tokenizer):
     """
     Sube el modelo más reciente a Ollama.
     Si el modelo ya existe, lo elimina antes de subir el nuevo.
-
-    Args:
-        model: El modelo entrenado.
-        tokenizer: El tokenizer asociado al modelo.
     """
     model_name = "unsloth_model"  # Nombre del modelo en Ollama
 
@@ -24,15 +22,18 @@ def upload_to_ollama(model, tokenizer):
         print(f"Error al verificar o eliminar el modelo existente: {e}")
         return f"Error al verificar o eliminar el modelo existente: {e}"
 
+    # Liberar memoria de la GPU antes de guardar
+    torch.cuda.empty_cache()
+
     # Guardar el modelo en formato GGUF
     try:
-        model.save_pretrained_gguf("model", tokenizer,)
+        model.save_pretrained_gguf("model", tokenizer)
     except Exception as e:
         return f"Error al guardar el modelo en formato GGUF: {e}"
 
     # Subir el nuevo modelo a Ollama
     try:
-        subprocess.run(["ollama", "create", model_name, "-f", "Modelfile"], check=True)
+        subprocess.run(["ollama", "create", model_name, "-f", "./model/Modelfile"], check=True)
         return f"Modelo '{model_name}' subido a Ollama correctamente."
     except subprocess.CalledProcessError as e:
         return f"Error al subir el modelo a Ollama: {e}"
