@@ -3,6 +3,9 @@ from unsloth import FastLanguageModel
 import torch
 
 
+from torch.nn import DataParallel
+
+
 def upload_to_ollama(model, tokenizer):
     """
     Sube el modelo más reciente a Ollama.
@@ -25,15 +28,18 @@ def upload_to_ollama(model, tokenizer):
     # Liberar memoria de la GPU antes de guardar
     torch.cuda.empty_cache()
 
+
     # Guardar el modelo en formato GGUF
     try:
-        model.save_pretrained_gguf("model", tokenizer)
+        # Acceder al modelo original si está envuelto en DataParallel
+        model_to_save = model.module if isinstance(model, DataParallel) else model
+        model_to_save.save_pretrained_gguf("model", tokenizer)
     except Exception as e:
         return f"Error al guardar el modelo en formato GGUF: {e}"
 
     # Subir el nuevo modelo a Ollama
     try:
-        subprocess.run(["ollama", "create", model_name, "-f", "./model/Modelfile"], check=True)
+        subprocess.run(["ollama", "create", model_name, "-f", "Modelfile"], check=True)
         return f"Modelo '{model_name}' subido a Ollama correctamente."
     except subprocess.CalledProcessError as e:
         return f"Error al subir el modelo a Ollama: {e}"

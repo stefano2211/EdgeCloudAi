@@ -22,7 +22,7 @@ def fine_tune_pdf(file_path):
     else:
         # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+            model_name="unsloth/Meta-Llama-3.1-8B",
             max_seq_length=MAX_SEQ_LENGTH,
             dtype=DTYPE,
             load_in_4bit=LOAD_IN_4BIT,
@@ -80,7 +80,7 @@ def fine_tune_pdf(file_path):
 
     # Configurar el entrenador
     trainer = SFTTrainer(
-        model=model,
+        model=model.module if isinstance(model, DataParallel) else model,  # Acceder al modelo original
         tokenizer=tokenizer,
         train_dataset=dataset,
         dataset_text_field="text",
@@ -127,7 +127,7 @@ def fine_tune_historical(file_path):
     else:
         # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+            model_name="unsloth/Meta-Llama-3.1-8B",
             max_seq_length=MAX_SEQ_LENGTH,
             dtype=DTYPE,
             load_in_4bit=LOAD_IN_4BIT,

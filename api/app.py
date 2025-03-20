@@ -31,7 +31,7 @@ load_in_4bit = True
 
 # Cargar el modelo y tokenizer inicial
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+    model_name="unsloth/Meta-Llama-3.1-8B",
     max_seq_length=max_seq_length,
     dtype=dtype,
     load_in_4bit=load_in_4bit,
