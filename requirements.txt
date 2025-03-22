@@ -6,8 +6,7 @@ chromadb==0.6.3
 jose==1.0.0
 python-jose==3.4.0
 passlib==1.7.4
-unsloth==2025.3.6
-unsloth_zoo==2025.3.4
+unsloth== 2025.3.18
 tf-keras==2.19.0
 python-multipart==0.0.20
 fastembed==0.6.0
