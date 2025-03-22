@@ -149,11 +149,15 @@ The project handles multiple users as follows:
     ```bash
     apt install curl libcurl4-openssl-dev
     ```
-3. **Run project**
+2. **Download curl**:
     ```bash
-    uvicorn api.app:app
+    apt install curl libcurl4-openssl-dev
     ```
-5. **Fine-Tuning**:Before starting to use the frontend you have to perform the fine-tuning of the model and once done you can use the AppAI.
+3. **Install requeriments.txt**
+    ```bash
+    pip install -r requirements.txt
+    ```
+4. **Fine-Tuning**:Before starting to use the frontend you have to perform the fine-tuning of the model and once done you can use the AppAI.
 
 To run the project, you can use Docker:
 
