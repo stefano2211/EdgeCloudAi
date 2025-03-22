@@ -77,7 +77,7 @@ class HistoricalFineTuningRequest(BaseModel):
     file: UploadFile = File(...)
 
 # Endpoint para fine-tuning con datos de PDF
-@app.post("/fine-tune-pdf/")
+@app.post("/fine-tune-pdf/", tags=["Fine-tuning"])
 async def fine_tune_pdf_endpoint(file: UploadFile = File(...)):
     try:
         # Guardar el archivo temporalmente
