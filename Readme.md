@@ -170,13 +170,17 @@ The project handles multiple users as follows:
     ```bash
     ollama serve
     ```
-4. **Run project**
+4. **Install requeriments.txt**
+    ```bash
+    pip install -r requirements.txt
+    ```
+5. **Run project**
     ```bash
     uvicorn api.app:app
     ```
-5. **First Steps**:Performs fine tuning of the model in either the pdf data or historical data endpint.
-6. **Uplooad to Ollama**:After fine tuning upload the model to ollama with the endpoint upload-to-ollama
-7. **Use AppAI**:You can now make queries from the AppAi with the trained model.
+6. **First Steps**:Performs fine tuning of the model in either the pdf data or historical data endpint.
+7. **Uplooad to Ollama**:After fine tuning upload the model to ollama with the endpoint upload-to-ollama
+8. **Use AppAI**:You can now make queries from the AppAi with the trained model.
 
 ### Run the project with doocker
 
