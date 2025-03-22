@@ -156,7 +156,29 @@ The project handles multiple users as follows:
 
 ## Running the Project
 
-To run the project, you can use Docker:
+### Run the project Theta Edge Cloud
+
+1. **Download curl**:
+    ```bash
+    apt install curl libcurl4-openssl-dev
+    ```
+2. **Download ollama**:
+    ```bash
+    curl -fsSL https://ollama.com/install.sh | sh
+    ```
+3. **On ollama**:
+    ```bash
+    ollama serve
+    ```
+4. **Run project**
+    ```bash
+    uvicorn api.app:app
+    ```
+5. **First Steps**:Performs fine tuning of the model in either the pdf data or historical data endpint.
+6. **Uplooad to Ollama**:After fine tuning upload the model to ollama with the endpoint upload-to-ollama
+7. **Use AppAI**:You can now make queries from the AppAi with the trained model.
+
+### Run the project with doocker
 
 1. **Build the Docker Image**:
     ```bash
