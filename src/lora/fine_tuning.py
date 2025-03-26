@@ -8,6 +8,8 @@ from src.lora.model_utils import *
 from unsloth import FastLanguageModel
 from torch.nn import DataParallel
 from torch.cuda.amp import autocast
+from unsloth import to_sharegpt
+from unsloth import standardize_sharegpt
 
 def fine_tune_pdf(file_path):
     """
@@ -22,7 +24,7 @@ def fine_tune_pdf(file_path):
     else:
         # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+            model_name="unsloth/Meta-Llama-3.1-8B-bnb-4bit",
             max_seq_length=MAX_SEQ_LENGTH,
             dtype=DTYPE,
             load_in_4bit=LOAD_IN_4BIT,
@@ -51,17 +53,27 @@ def fine_tune_pdf(file_path):
     with open(file_path, "r") as f:
         data = json.load(f)
 
-    # Convertir el dataset al formato requerido
+    # Convertir el dataset al formato requerido por to_sharegpt
     formatted_data = []
     for d in data:
-        conversation = [
-            {"role": "user", "content": d["input"]},
-            {"role": "assistant", "content": d["output"]},
-        ]
-        formatted_data.append({"conversations": conversation})
+        formatted_data.append({
+            "instruction": d["instruction"],
+            "input": d["input"],
+            "output": d["output"]
+        })
 
     # Crear el dataset
     dataset = Dataset.from_list(formatted_data)
+
+    # Aplicar transformación a formato conversacional
+    dataset = to_sharegpt(
+        dataset,
+        merged_prompt="Instrucción: {instruction}\nEntrada: {input}",
+        output_column_name="output",
+        conversation_extension=1,  # 1 conversación por entrada
+    )
+
+    dataset = standardize_sharegpt(dataset)
 
     # Aplicar el template de chat
     chat_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -76,6 +88,7 @@ def fine_tune_pdf(file_path):
         dataset,
         tokenizer=tokenizer,
         chat_template=chat_template,
+        default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",
     )
 
     # Configurar el entrenador
@@ -127,7 +140,7 @@ def fine_tune_historical(file_path):
     else:
         # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+            model_name="unsloth/Meta-Llama-3.1-8B-bnb-4bit",
             max_seq_length=MAX_SEQ_LENGTH,
             dtype=DTYPE,
             load_in_4bit=LOAD_IN_4BIT,

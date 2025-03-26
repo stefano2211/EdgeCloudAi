@@ -3,7 +3,7 @@ from unsloth import FastLanguageModel
 import torch
 from torch.nn import DataParallel
 
-MAX_SEQ_LENGTH = 20000
+MAX_SEQ_LENGTH = 2048
 DTYPE= None
 LOAD_IN_4BIT = True
 

@@ -18,4 +18,4 @@ PARAMETER stop "<|eot_id|>"
 PARAMETER stop "<|reserved_special_token_"
 PARAMETER temperature 1.5
 PARAMETER min_p 0.1
-SYSTEM "You are a model of ia for answering questions"
+SYSTEM "Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión."
