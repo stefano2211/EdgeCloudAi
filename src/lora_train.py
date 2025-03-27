@@ -50,7 +50,7 @@ def train_lora_incremental(json_file_path, learning_rate=5e-5, epochs=10, batch_
     lora_config = LoraConfig(
         r=8,
         lora_alpha=32,
-        target_modules=["attn.c_attn", "attn.c_proj"],  # Módulos específicos de distilgpt2
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj","gate_proj", "up_proj", "down_proj"],  # Módulos específicos de distilgpt2
         lora_dropout=0.1,
         bias="none",
         task_type="CAUSAL_LM"
