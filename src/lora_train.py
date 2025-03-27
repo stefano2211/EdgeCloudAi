@@ -16,6 +16,7 @@ from datasets import Dataset
 import torch
 import os
 from src.upload_file import load_json_data
+import bitsandbytes as bnb
 
 # Configuración del modelo y tokenizer
 MODEL_NAME = "meta-llama/Llama-3.1-8B"
@@ -38,8 +39,27 @@ def train_lora_incremental(json_file_path, learning_rate=5e-5, epochs=10, batch_
     # Cargar el archivo JSON
     data = load_json_data(json_file_path)
 
+    bnb_config = transformers.BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type='nf4',
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=bfloat16
+    )
+
+    model_config = transformers.AutoConfig.from_pretrained(
+        MODEL_NAME,
+        token=True
+    )
+
     # Cargar el modelo y tokenizer preentrenados
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        trust_remote_code=True,
+        config=model_config,
+        quantization_config=bnb_config,
+        device_map='auto',
+        token=True
+    )
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
     # Configurar el pad_token si no está definido
