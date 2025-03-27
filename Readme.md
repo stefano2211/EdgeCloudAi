@@ -143,6 +143,22 @@ The project handles multiple users as follows:
 
 ## Running the Project
 
+### Run the project Theta Edge Cloud
+
+1. **Download curl**:
+    ```bash
+    apt install curl libcurl4-openssl-dev
+    ```
+2. **Download curl**:
+    ```bash
+    apt install curl libcurl4-openssl-dev
+    ```
+3. **Install requeriments.txt**
+    ```bash
+    pip install -r requirements.txt
+    ```
+4. **Fine-Tuning**:Before starting to use the frontend you have to perform the fine-tuning of the model and once done you can use the AppAI.
+
 To run the project, you can use Docker:
 
 1. **Build the Docker Image**:
