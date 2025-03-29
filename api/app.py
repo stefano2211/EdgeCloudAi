@@ -25,13 +25,13 @@ app = FastAPI()
 os.makedirs("users", exist_ok=True)
 
 # Configuración inicial del modelo
-max_seq_length = 20000
+max_seq_length = 2048
 dtype = None
 load_in_4bit = True
 
 # Cargar el modelo y tokenizer inicial
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/Meta-Llama-3.1-8B-bnb-4bit",
+    model_name="unsloth/Meta-Llama-3.1-8B",
     max_seq_length=max_seq_length,
     dtype=dtype,
     load_in_4bit=load_in_4bit,
@@ -69,12 +69,6 @@ class ChatMessage(BaseModel):
 class DeletePDFRequest(BaseModel):
     filename: str
 
-
-class PDFFineTuningRequest(BaseModel):
-    file: UploadFile = File(...)
-
-class HistoricalFineTuningRequest(BaseModel):
-    file: UploadFile = File(...)
 
 # Endpoint para fine-tuning con datos de PDF
 @app.post("/fine-tune-pdf/", tags=["Fine-tuning"])

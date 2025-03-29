@@ -1,21 +1,17 @@
 FROM model/unsloth.Q8_0.gguf
 
-TEMPLATE """{{ if .System }}<|start_header_id|>system<|end_header_id|>
+TEMPLATE """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.{{ if .Prompt }}
 
-{{ .System }}<|eot_id|>{{ end }}{{ if .Prompt }}<|start_header_id|>user<|end_header_id|>
+### Instruction:
+{{ .Prompt }}{{ end }}
 
-{{ .Prompt }}<|eot_id|>{{ end }}<|start_header_id|>assistant<|end_header_id|>
+### Response:
+{{ .Response }}<|end_of_text|>"""
 
-{{ .Response }}<|eot_id|>"""
-
-PARAMETER stop "<|start_header_id|>"
-PARAMETER stop "<|end_of_text|>"
-PARAMETER stop "<|finetune_right_pad_id|>"
-PARAMETER stop "<|end_header_id|>"
-PARAMETER stop "<|python_tag|>"
-PARAMETER stop "<|eom_id|>"
 PARAMETER stop "<|eot_id|>"
+PARAMETER stop "<|start_header_id|>"
+PARAMETER stop "<|end_header_id|>"
+PARAMETER stop "<|end_of_text|>"
 PARAMETER stop "<|reserved_special_token_"
 PARAMETER temperature 1.5
 PARAMETER min_p 0.1
-SYSTEM "Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión."

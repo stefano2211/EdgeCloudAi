@@ -24,7 +24,7 @@ def fine_tune_pdf(file_path):
     else:
         # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name="unsloth/Meta-Llama-3.1-8B-bnb-4bit",
+            model_name="unsloth/Meta-Llama-3.1-8B",
             max_seq_length=MAX_SEQ_LENGTH,
             dtype=DTYPE,
             load_in_4bit=LOAD_IN_4BIT,
@@ -68,27 +68,27 @@ def fine_tune_pdf(file_path):
     # Aplicar transformación a formato conversacional
     dataset = to_sharegpt(
         dataset,
-        merged_prompt="Instrucción: {instruction}\nEntrada: {input}",
+        merged_prompt="Instrucción: {instruction}\nInput: {input}",
         output_column_name="output",
-        conversation_extension=1,  # 1 conversación por entrada
+        conversation_extension=3,  # 1 conversación por entrada
     )
 
     dataset = standardize_sharegpt(dataset)
 
     # Aplicar el template de chat
-    chat_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    chat_template = """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.
 
-    {SYSTEM}<|eot_id|><|start_header_id|>user<|end_header_id|>
+    ### Instruction:
+    {INPUT}
 
-    {INPUT}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-    {OUTPUT}<|eot_id|>"""
+    ### Response:
+    {OUTPUT}"""
 
     dataset = apply_chat_template(
         dataset,
         tokenizer=tokenizer,
         chat_template=chat_template,
-        default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",
+
     )
 
     # Configurar el entrenador
@@ -140,7 +140,7 @@ def fine_tune_historical(file_path):
     else:
         # Cargar el modelo base si no existe un modelo previamente entrenado
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name="unsloth/Meta-Llama-3.1-8B-bnb-4bit",
+            model_name="unsloth/Meta-Llama-3.1-8B",
             max_seq_length=MAX_SEQ_LENGTH,
             dtype=DTYPE,
             load_in_4bit=LOAD_IN_4BIT,
@@ -182,24 +182,22 @@ def fine_tune_historical(file_path):
         output_column_name="Output",
     )
 
-    # Estandarizar el dataset
-    from unsloth import standardize_sharegpt
     dataset = standardize_sharegpt(dataset)
 
     # Aplicar el template de chat
-    chat_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    chat_template = """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.
 
-    {SYSTEM}<|eot_id|><|start_header_id|>user<|end_header_id|>
+    ### Instruction:
+    {INPUT}
 
-    {INPUT}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-    {OUTPUT}<|eot_id|>"""
+    ### Response:
+    {OUTPUT}"""
 
     dataset = apply_chat_template(
         dataset,
         tokenizer=tokenizer,
         chat_template=chat_template,
-        #default_system_message="Eres un modelo de inteligencia artificial entrenado con manuales, documentos de la empresa e historial de máquinas para análisis y predicciones. Mis datos se actualizan de forma incremental para mejorar continuamente mi precisión.",  # Optional
+        
     )
 
     # Configurar el entrenador
