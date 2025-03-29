@@ -161,26 +161,45 @@ def fine_tune_historical(file_path):
         loftq_config = None, # And LoftQ
     )
 
-    # Cargar el dataset desde el archivo CSV
-    from datasets import load_dataset
-    dataset = load_dataset(
-        "csv",
-        data_files=file_path,
-        split="train",
-    )
+    # Procesar datos JSON
+    with open(file_path, "r") as f:
+        data = json.load(f)
 
-    # Convertir el dataset al formato requerido
-    from unsloth import to_sharegpt
-    dataset = to_sharegpt(
-        dataset,
-        merged_prompt="[[El id del modelo de la maquina: {ID}.]]"\
-                      "[[\nEstatus de la maquina: {Status}.]]"\
-                      "[[\nTemperatura de la maquina: {Temperatura}.]]"\
-                      "[[\nFecha de registro: {Fecha}.]]"\
-                      "[[\nHora de registro: {Hora}.]]",
-        conversation_extension=5,
-        output_column_name="Output",
-    )
+    formatted_data = []
+    for record in data:
+        # Construir instruction con todos los datos contextuales
+        instruction = (
+            "Datos de producción completos:\n"
+            f"- Transacción: {record['transaction_id']} (Orden: {record['work_order_id']})\n"
+            f"- Equipo: {record['equipment']} | Operador: {record['operator']}\n"
+            f"- Fecha/Hora: {record['timestamp']}\n"
+            "Mediciones:\n"
+            f"- Temperatura: {record['sensor_data']['temperature']}°C (Límite: {record['contextual_info']['compliance_rules']['temperature_limit']}°C)\n"
+            f"- Presión: {record['sensor_data']['pressure']}psi (Límite: {record['contextual_info']['compliance_rules']['pressure_limit']}psi)\n"
+            f"- Vibración: {record['sensor_data']['vibration']}mm/s\n"
+            "Producción:\n"
+            f"- Cantidad: {record['production_metrics']['quantity']} unidades\n"
+            f"- Tipo: {record['production_metrics']['product_type']}\n"
+            "Contexto:\n"
+            f"- Notas: {record['contextual_info']['process_notes']}"
+        )
+
+        # Construir output analítico
+        output = (
+            "Resultado del análisis:\n"
+            f"- Probabilidad de calidad: {record['target_output']['quality_probability']:.0%}\n"
+            f"- Cumplimiento: {'✅' if record['target_output']['compliance_status'] else '❌'}\n"
+            f"- Explicación técnica: {record['target_output']['explanation']}"
+        )
+
+        formatted_data.append({
+            "instruction": instruction,
+            "input": "",  # Vacío para permitir preguntas abiertas
+            "output": output
+        })
+
+    # Crear dataset
+    dataset = Dataset.from_list(formatted_data)
 
     dataset = standardize_sharegpt(dataset)
 
