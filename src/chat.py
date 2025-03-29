@@ -53,10 +53,7 @@ def chat(msg: str, buffer, username: str) -> str:
     )
 
     # Definir el prompt
-    custom_prompt_template = """
-    Si la pregunta es sobre los datos de las máquinas, responde basado en los datos de las máquinas.
-    Si la pregunta es sobre un archivo, responde basado en el contenido del archivo PDF.
-    Si la pregunta necesita que combines ambos datos, hazlo para la predicción final.
+    custom_prompt_template = """Responde lo que te pregunten.
     Contexto: {context}
     Historial de conversación: {history}
     Pregunta: {question}
